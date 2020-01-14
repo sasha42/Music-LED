@@ -54,7 +54,7 @@ async def respondToMusic(peak):
     #print(peak)
     if peak < 256:
         for bulb in bulbs:
-            bulbs[bulb].setRgb(0,0,peak)
+            bulbs[bulb].setRgb(0,0,peak*10)
     else:
         print(peak)
     #print("set bulb {} to green ".format(peak))
@@ -64,7 +64,7 @@ loop = asyncio.get_event_loop()
 ###############
 #### MUSIC ####
 ###############
-CHUNK = 2**3
+CHUNK = 2**10
 RATE = 44100
 
 p=pyaudio.PyAudio()
@@ -86,7 +86,7 @@ def processMusic(sample):
     # Filter out repeating bass sounds 100 - 180bpm
     beat = beatFilter(envelope)
 
-    print(beat)
+    #print(beat)
 
     return int(envelope)
 
@@ -99,21 +99,21 @@ while True:
     data = np.fromstring(stream.read(CHUNK),dtype=np.int16)
     peak=np.average(np.abs(data))*2
 
-    i += 1
-    if i > 200:
-        i = 0
-        #print(start_time)
-        new_time = time.time()
-        hz = int(1/((new_time-prev_time)/200))
-        #print(f'{hz} hz')
-        prev_time = new_time
-        #print('yes')
-        # process music
-        value = processMusic(peak)
-        #print(value)
+    #i += 1
+    #if i > 200:
+        #i = 0
+    #print(start_time)
+    #new_time = time.time()
+    #hz = int(1/((new_time-prev_time)/200))
+    #print(f'{hz} hz')
+    #prev_time = new_time
+    #print('yes')
+    # process music
+    value = processMusic(peak)
+    #print(value)
 
-        loop.run_until_complete(respondToMusic(value))
-        #print(int(peak/128))
+    loop.run_until_complete(respondToMusic(value))
+    #print(int(peak/128))
 
 
     #bars="#"*int(50*peak/2**16)
