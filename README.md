@@ -12,6 +12,7 @@ Inspired by:
 You will need to install the portaudio plugin through brew:
 ```
 brew install portaudio
+pip install -r requirements.txt
 ```
 
 ## Running
@@ -19,18 +20,8 @@ brew install portaudio
 python music.py
 ```
 
-***
+This code will look at IPs you have saved in `ip.order.txt` and will change their color based on what is heard through the microphone.
 
-### Descriptions of files
-* `audiovis.py` cool audio visualization in console
-* `blue.py` sets all your LEDs to blue
-* `blueBlink.py` and `blueFlashing.py` various methods of blinking LEDs
-* `dark.py` makes all your LEDs go dark (without turning them off)
-* `filters.py` used by music.py, transcoded from @binarybrain
-* `flux_led_v3.py` library for controlling the leds
-* `ip.order.txt` example ip order file (required to control LEDs)
-* `music.py` **use this** to controll lights from music
-* `pong.py` example code for high frequency LED updates
-* `rainbow[Blink,Smooth,Tunnel].py` rainbow effects on LEDs
+---
 
-Have fun!
+Coded with ❤️ in Lausanne
