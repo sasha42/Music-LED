@@ -74,14 +74,6 @@ async def changeColor(bulbs, peak):
                 else:
                     bulbs[bulb].setRgb(a_peak,a_peak,a_peak)
 
-<<<<<<< HEAD
-=======
-async def respondToMusic(peak):
-    #print(peak)
-    if peak < 256:
-        for bulb in bulbs:
-            bulbs[bulb].setRgb(0,0,peak*10)
->>>>>>> 3d8afb0075df6b2d92d0640528795fe968082870
     else:
         print(peak)
 
@@ -105,7 +97,6 @@ def processMusic(sample):
 
     return int(envelope)
 
-<<<<<<< HEAD
 
 def respondToMusic(stream, bulbs):
     # listen to music
@@ -150,58 +141,3 @@ if __name__ == "__main__":
 #stream.stop_stream()
 #stream.close()
 #p.terminate()
-=======
-def processMusic(sample):
-    """Process music with @BinaryBrain's filters"""
-    # Filter only bass component
-    value = bassFilter(sample)
-
-    # Take signal amplitude and filter
-    if value < 0:
-        value = -value
-
-    # Take signal amplitude and filter
-    envelope = envelopeFilter(value)
-
-    # Filter out repeating bass sounds 100 - 180bpm
-    beat = beatFilter(envelope)
-
-    #print(beat)
-
-    return int(envelope)
-
-#for i in range(int(10*44100/1024)): #go for a few seconds
-
-i = 0
-prev_time = time.time()
-
-while True:
-    data = np.fromstring(stream.read(CHUNK),dtype=np.int16)
-    peak=np.average(np.abs(data))*2
-
-    #i += 1
-    #if i > 200:
-        #i = 0
-    #print(start_time)
-    #new_time = time.time()
-    #hz = int(1/((new_time-prev_time)/200))
-    #print(f'{hz} hz')
-    #prev_time = new_time
-    #print('yes')
-    # process music
-    value = processMusic(peak)
-    #print(value)
-
-    loop.run_until_complete(respondToMusic(value))
-    #print(int(peak/128))
-
-
-    #bars="#"*int(50*peak/2**16)
-    #print("%04d %05d %s"%(i,int(peak/128),bars))
-    
-    
-
-stream.stop_stream()
-stream.close()
-p.terminate()
->>>>>>> 3d8afb0075df6b2d92d0640528795fe968082870
