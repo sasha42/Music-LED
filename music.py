@@ -37,14 +37,9 @@ def loadLEDs():
 
             ips.append(ip)
 
-    tempIps = copy.copy(ips)
-    tempIps.reverse()
-
     # Once the file has been read, the script will attempt to create
     # objects for each bulb.
-    print ("Connecting to {}".format(tempIps))
-    for ip in tempIps:
-        ips.append(ip)
+    print ("Connecting to {}".format(ips))
 
     for ip in ips:
         try:
