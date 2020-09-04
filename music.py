@@ -11,6 +11,15 @@ import datetime
 import copy
 import flux_led_v3 as flux_led
 
+#############################
+## Edit configuration here ##
+#############################
+
+device = 0
+channels = 1
+
+#############################
+
 
 def loadLEDs():
     '''Loads IPs from ip.order.txt into memory, and attemps to connect
@@ -95,18 +104,18 @@ def processMusic(sample):
 
 def respondToMusic(stream, bulbs):
     # listen to music
-    data = np.fromstring(stream.read(CHUNK),dtype=np.int16)
+    data = np.fromstring(stream.read(CHUNK, exception_on_overflow = False),dtype=np.int16)
     peak=np.average(np.abs(data))*2
 
     # process value
     value = processMusic(peak)
 
     last_ten.append(value)
-    if len(last_ten) > 10:
+    if len(last_ten) > 1:
         last_ten.pop(0)
     else:
         pass
-    avg_last_ten = int(sum(last_ten) / 10)
+    avg_last_ten = int(sum(last_ten) / 1)
 
     # change the color of LEDs
     loop.run_until_complete(changeColor(bulbs, avg_last_ten))
@@ -118,11 +127,14 @@ if __name__ == "__main__":
 
     # set up the microphone
     CHUNK = 2**10
-    RATE = 44100
+    form_1 = pyaudio.paInt16 # 16-bit resolution
+    samp_rate = 44100 # 44.1kHz sampling rate
+    audio = pyaudio.PyAudio() # create pyaudio instantiation
 
-    p=pyaudio.PyAudio()
-    stream=p.open(format=pyaudio.paInt16,channels=1,rate=RATE,input=True,
-                frames_per_buffer=CHUNK)
+    # create pyaudio stream
+    stream = audio.open(format = form_1, rate = samp_rate, channels = channels, \
+                        input_device_index = device, input = True, \
+                        frames_per_buffer=CHUNK)
 
     # start responding to music
     loop = asyncio.get_event_loop()
