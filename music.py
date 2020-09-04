@@ -11,14 +11,9 @@ import datetime
 import copy
 import flux_led_v3 as flux_led
 
-#############################
-## Edit configuration here ##
-#############################
-
-device = 0
-channels = 1
-
-#############################
+# connection check
+import requests
+import time
 
 
 def loadLEDs():
@@ -28,7 +23,7 @@ def loadLEDs():
     # Open ip.order.txt and read the IPs of the bulbs. It expects a list
     # of IPs like 192.168.1.1, with one IP per line. The file should end
     # with one empty line.
-    filepath = 'ip.order.txt'
+    filepath = '/home/pi/Music-LED/ip.order.txt'
 
     # Define variables
     ips = []
@@ -122,23 +117,49 @@ def respondToMusic(stream, bulbs):
 
 
 if __name__ == "__main__":
+    # wait for there to be an internet connection
+    retry = True
+    while retry:
+        try:
+            r = requests.get('http://example.com')
+            print('Connected to internet')
+            print(r.status_code)
+            time.sleep(1)
+            if r.status_code/10==20:
+                retry = False
+        except:
+            time.sleep(1)
+            print('Waiting for connection...')
+
     # set up the LEDs
     bulbs = loadLEDs()
 
     # set up the microphone
     CHUNK = 2**10
+    #RATE = 44100
+
+    #p=pyaudio.PyAudio()
+    #stream=p.open(format=pyaudio.paInt16,channels=128,rate=RATE,input=True,
+    #            frames_per_buffer=CHUNK)
+
     form_1 = pyaudio.paInt16 # 16-bit resolution
+    chans = 1 # 1 channel
     samp_rate = 44100 # 44.1kHz sampling rate
+    chunk = 256 # 2^12 samples for buffer
+    dev_index = 0 # device index found by p.get_device_info_by_index(ii)
+
     audio = pyaudio.PyAudio() # create pyaudio instantiation
 
     # create pyaudio stream
-    stream = audio.open(format = form_1, rate = samp_rate, channels = channels, \
-                        input_device_index = device, input = True, \
+    stream = audio.open(format = form_1,rate = samp_rate,channels = chans, \
+                        input_device_index = dev_index,input = True, \
                         frames_per_buffer=CHUNK)
 
     # start responding to music
     loop = asyncio.get_event_loop()
     last_ten = [] # avg values across 10 samples
+
+    print('about to start magic')
 
     while True:
         respondToMusic(stream, bulbs)
