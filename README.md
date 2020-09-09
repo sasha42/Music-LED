@@ -77,7 +77,10 @@ You will then need to take the above information, and plug it into `music.py`, o
 Once you have everything set up, you can 
 
 ## Running
+You will need to have `redis-server` installed and running on your computer.
+
 ```
+export REDIS_URL='redis://localhost:6379'
 python music.py
 ```
 

@@ -15,6 +15,15 @@ import flux_led_v3 as flux_led
 import requests
 import time
 
+# redis
+import redis
+import os
+import pickle
+
+
+# set up redis connection
+r = redis.from_url(os.environ.get("REDIS_URL"))
+
 
 def loadLEDs():
     '''Loads IPs from ip.order.txt into memory, and attemps to connect
@@ -23,7 +32,7 @@ def loadLEDs():
     # Open ip.order.txt and read the IPs of the bulbs. It expects a list
     # of IPs like 192.168.1.1, with one IP per line. The file should end
     # with one empty line.
-    filepath = '/home/pi/Music-LED/ip.order.txt'
+    filepath = 'ip.order.txt'
 
     # Define variables
     ips = []
@@ -97,6 +106,33 @@ def processMusic(sample):
     return int(envelope)
 
 
+def checkMode():
+    '''Check mode of button pushed from redis'''
+
+    p_mode = r.get('mode')
+    mode = pickle.loads(p_mode)
+
+    return mode['mode']
+
+
+def easeInBack(x):
+    # actually easeInQuart
+    #c1 = 1.70158
+    #c3 = c1 + 1
+
+    #return c3 * x * x * x - c1 * x * x
+    return x * x * x * x
+
+
+def setGeneral(bulbs):
+    for i in range(254):
+        brightness = int(easeInBack(i/254)*254)
+        print(brightness)
+        loop.run_until_complete(changeColor(bulbs, int(brightness/10)))
+        time.sleep(0.01)
+
+
+
 def respondToMusic(stream, bulbs):
     # listen to music
     data = np.fromstring(stream.read(CHUNK, exception_on_overflow = False),dtype=np.int16)
@@ -121,11 +157,11 @@ if __name__ == "__main__":
     retry = True
     while retry:
         try:
-            r = requests.get('http://example.com')
+            resp = requests.get('http://example.com')
             print('Connected to internet')
-            print(r.status_code)
+            print(resp.status_code)
             time.sleep(1)
-            if r.status_code/10==20:
+            if resp.status_code/10==20:
                 retry = False
         except:
             time.sleep(1)
@@ -158,11 +194,40 @@ if __name__ == "__main__":
     # start responding to music
     loop = asyncio.get_event_loop()
     last_ten = [] # avg values across 10 samples
+    changed = False
 
     print('about to start magic')
 
     while True:
-        respondToMusic(stream, bulbs)
+        # check if music mode is on or off
+        mode = checkMode()
+
+        # if music mode is on, continue as normal
+        if mode == "music":
+            changed = False
+            respondToMusic(stream, bulbs)
+
+        # if general mode, set general mode, and 
+        # then check state again every second
+        if mode == "general":
+            if changed == False:
+                setGeneral(bulbs)
+                print('setGeneral placeholders')
+                changed = True
+
+            time.sleep(1) # sleep so that we don't ddos redis
+
+        #check_running
+        #if running = False
+        #    if running_state == 'music':
+        #        set_to_general
+        #        running_state = 'general'
+        #    time.sleep(1) # sleep to avoid going crazy on redis
+
+        #else:
+        #    if running_state == 'general':
+        #        running_state = 'music'
+
 
 
 # this is probably important TODO FIXME
