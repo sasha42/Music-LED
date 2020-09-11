@@ -30,9 +30,9 @@ def loadLEDs():
     to them.'''
 
     # Open ip.order.txt and read the IPs of the bulbs. It expects a list
-    # of IPs like 192.168.1.1, with one IP per line. The file should end
+    # of IPs like 192.168.1.1, with one IP per line. The file should start
     # with one empty line.
-    filepath = '/home/pi/Music-LED/ip.order.txt'
+    filepath = 'ip.order.txt'
 
     # Define variables
     ips = []
@@ -52,7 +52,7 @@ def loadLEDs():
 
     # Once the file has been read, the script will attempt to create
     # objects for each bulb.
-    print ("Connecting to {}".format(ips))
+    print (f"💡 Connected to {len(ips)} LED strips")
 
     for ip in ips:
         try:
@@ -70,6 +70,8 @@ def loadLEDs():
 
 
 async def changeColor(bulbs, peak):
+    '''Change the color of LEDs based on the peak value'''
+
     if peak < 255:
         # hack to accomodate for cray cray peak
         a_peak = peak*10
@@ -82,7 +84,8 @@ async def changeColor(bulbs, peak):
 
 
 def processMusic(sample):
-    """Process music with @BinaryBrain's filters"""
+    '''Process music with @BinaryBrain's filters'''
+
     # Filter only bass component
     value = bassFilter(sample)
 
@@ -95,8 +98,6 @@ def processMusic(sample):
 
     # Filter out repeating bass sounds 100 - 180bpm
     beat = beatFilter(envelope)
-
-    #print(beat)
 
     return int(envelope)
 
@@ -111,10 +112,15 @@ def checkMode():
 
 
 def easeOutCubic(x):
+    '''Easing function'''
+
     return 1 - pow(1 - x, 3)
 
 
 def setGeneral(bulbs):
+    '''Set general lighting for when the music mode is disabled'''
+
+    # use an easing function to smoothyl turn on the LEDs
     for i in range(255):
         brightness = int(easeOutCubic(i/254)*254)
         loop.run_until_complete(changeColor(bulbs, int(brightness/10)))
@@ -122,8 +128,10 @@ def setGeneral(bulbs):
 
 
 def respondToMusic(stream, bulbs):
+    '''Respond to every chunk read by the audio input'''
+
     # listen to music
-    data = np.fromstring(stream.read(chunk, exception_on_overflow = False),dtype=np.int16)
+    data = np.frombuffer(stream.read(chunk, exception_on_overflow = False), dtype=np.int16)
     peak=np.average(np.abs(data))*2
 
     # process value
@@ -159,15 +167,11 @@ def checkInternet():
 
     return True
 
+def loadMicrophone():
+    '''Load microphone by setting it up and creating a pyaudio
+    stream that can be read.'''
 
-if __name__ == "__main__":
-    # wait for there to be an internet connection
-    checkInternet()
-
-    # set up the LEDs
-    bulbs = loadLEDs()
-
-    # set up the microphone
+    # Configure options for audio capture
     chunk = 2**10
     form_1 = pyaudio.paInt16 # 16-bit resolution
     chans = 1 # 1 channel
@@ -175,12 +179,26 @@ if __name__ == "__main__":
     chunk = 256 # 2^12 samples for buffer
     dev_index = 0 # device index found by p.get_device_info_by_index(ii)
 
-    audio = pyaudio.PyAudio() # create pyaudio instantiation
+    # Create pyaudio instantiation
+    audio = pyaudio.PyAudio() 
 
-    # create pyaudio stream
+    # Create pyaudio stream
     stream = audio.open(format = form_1,rate = samp_rate,channels = chans, \
                         input_device_index = dev_index,input = True, \
                         frames_per_buffer=chunk)
+
+    return stream, chunk
+
+
+if __name__ == "__main__":
+    # Wait for there to be an internet connection
+    checkInternet()
+
+    # Set up the LEDs
+    bulbs = loadLEDs()
+
+    # Set up the microphone
+    stream, chunk = loadMicrophone()
 
     # start responding to music
     loop = asyncio.get_event_loop()
@@ -220,7 +238,7 @@ if __name__ == "__main__":
 
         if count > 100:
             time_elapsed = time.time()-timestamp
-            #print(f'FPS: {100/time_elapsed}') # debug framerate
+            print(f'   Current FPS: {int(100/time_elapsed)}', end='\r') # debug framerate
             timestamp = time.time()
             count = 0
 
