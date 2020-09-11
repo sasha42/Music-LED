@@ -9,6 +9,7 @@ cycler==0.10.0
 decorator==4.4.1
 ezenv==0.91
 Flask==1.1.2
+Flask-Cors==3.0.9
 idna==2.10
 ipython==7.11.1
 ipython-genutils==0.2.0

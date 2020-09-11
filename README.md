@@ -33,7 +33,7 @@ There are several steps involved in getting this code to run on linux. You will 
 You will need some 
 ```
 sudo apt-get update
-sudo apt-get install libportaudio0 libportaudio2 libportaudiocpp0 portaudio19-dev libatlas-base-dev libffi-dev
+sudo apt-get install libportaudio0 libportaudio2 libportaudiocpp0 portaudio19-dev libatlas-base-dev libffi-dev redis
 ```
 
 **Set up environment variables**
@@ -74,7 +74,26 @@ You will then need to take the above information, and plug it into `music.py`, o
 * The `device` should equal to the number which is to the left of your input device (in this case it's `0`, as part of `0 RODE AI-1: US...`)
 * The `channel` should equal to the number of inputs, which is at the end of the line (in this case it's `1`, as part of `(1 in, 2 out)`)
 
-Once you have everything set up, you can 
+Once you have everything set up, you can run it.
+
+**Run on boot**
+
+Inside of `/lib/systemd/system/musicled.service`, you will need to add the following:
+```
+[Unit]
+Description=Music LED experience
+After=multi-user.target
+
+[Service]
+Environment="REDIS_URL=redis://localhost:6379"
+ExecStartPre=/bin/bash -c 'source /home/pi/Music-LED/venv/bin/activate && /home/pi/Music-LED/venv/bin/python /home/pi/Music-LED/server.py > /home/pi/serverled.log 2>&1 &'
+ExecStart=/bin/bash -c 'source /home/pi/Music-LED/venv/bin/activate && /home/pi/Music-LED/venv/bin/python /home/pi/Music-LED/music.py > /home/pi/musicled.log 2>&1'
+
+[Install]
+WantedBy=multi-user.target
+```
+
+You will then need to enable the service with `sudo systemctl enable musicled.service`. This should run when you reboot the Pi every time.
 
 ## Running
 You will need to have `redis-server` installed and running on your computer.

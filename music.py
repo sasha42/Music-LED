@@ -32,7 +32,7 @@ def loadLEDs():
     # Open ip.order.txt and read the IPs of the bulbs. It expects a list
     # of IPs like 192.168.1.1, with one IP per line. The file should end
     # with one empty line.
-    filepath = 'ip.order.txt'
+    filepath = '/home/pi/Music-LED/ip.order.txt'
 
     # Define variables
     ips = []
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     checkInternet()
 
     # set up the LEDs
-    #bulbs = loadLEDs()
+    bulbs = loadLEDs()
 
     # set up the microphone
     chunk = 2**10
