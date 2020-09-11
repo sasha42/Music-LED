@@ -75,12 +75,7 @@ async def changeColor(bulbs, peak):
         a_peak = peak*10
         if a_peak < 255:
             for bulb in bulbs:
-                if bulb in [1, 7]:
-                    bulbs[bulb].setRgb(a_peak,a_peak,a_peak)
-                elif bulb in [5, 6, 3]:
-                    bulbs[bulb].setRgb(a_peak,a_peak,a_peak)
-                else:
-                    bulbs[bulb].setRgb(a_peak,a_peak,a_peak)
+                bulbs[bulb].setRgb(a_peak,a_peak,a_peak)
 
     else:
         print(peak)
@@ -115,27 +110,20 @@ def checkMode():
     return mode['mode']
 
 
-def easeInBack(x):
-    # actually easeInQuart
-    #c1 = 1.70158
-    #c3 = c1 + 1
-
-    #return c3 * x * x * x - c1 * x * x
-    return x * x * x * x
+def easeOutCubic(x):
+    return 1 - pow(1 - x, 3)
 
 
 def setGeneral(bulbs):
-    for i in range(254):
-        brightness = int(easeInBack(i/254)*254)
-        print(brightness)
+    for i in range(255):
+        brightness = int(easeOutCubic(i/254)*254)
         loop.run_until_complete(changeColor(bulbs, int(brightness/10)))
         time.sleep(0.01)
 
 
-
 def respondToMusic(stream, bulbs):
     # listen to music
-    data = np.fromstring(stream.read(CHUNK, exception_on_overflow = False),dtype=np.int16)
+    data = np.fromstring(stream.read(chunk, exception_on_overflow = False),dtype=np.int16)
     peak=np.average(np.abs(data))*2
 
     # process value
@@ -152,32 +140,35 @@ def respondToMusic(stream, bulbs):
     loop.run_until_complete(changeColor(bulbs, avg_last_ten))
 
 
-if __name__ == "__main__":
-    # wait for there to be an internet connection
+def checkInternet():
+    '''Check whether the internet is working before continuing with
+    the application'''
+
     retry = True
+
     while retry:
         try:
             resp = requests.get('http://example.com')
-            print('Connected to internet')
-            print(resp.status_code)
+            print('🌍 Connected to internet')
             time.sleep(1)
             if resp.status_code/10==20:
                 retry = False
         except:
             time.sleep(1)
-            print('Waiting for connection...')
+            print('🕐 Waiting for connection...')
+
+    return True
+
+
+if __name__ == "__main__":
+    # wait for there to be an internet connection
+    checkInternet()
 
     # set up the LEDs
-    bulbs = loadLEDs()
+    #bulbs = loadLEDs()
 
     # set up the microphone
-    CHUNK = 2**10
-    #RATE = 44100
-
-    #p=pyaudio.PyAudio()
-    #stream=p.open(format=pyaudio.paInt16,channels=128,rate=RATE,input=True,
-    #            frames_per_buffer=CHUNK)
-
+    chunk = 2**10
     form_1 = pyaudio.paInt16 # 16-bit resolution
     chans = 1 # 1 channel
     samp_rate = 44100 # 44.1kHz sampling rate
@@ -189,46 +180,49 @@ if __name__ == "__main__":
     # create pyaudio stream
     stream = audio.open(format = form_1,rate = samp_rate,channels = chans, \
                         input_device_index = dev_index,input = True, \
-                        frames_per_buffer=CHUNK)
+                        frames_per_buffer=chunk)
 
     # start responding to music
     loop = asyncio.get_event_loop()
     last_ten = [] # avg values across 10 samples
-    changed = False
-
-    print('about to start magic')
+    changed = True
+    last_mode = 'start'
+    count = 0
+    timestamp = 0
 
     while True:
         # check if music mode is on or off
         mode = checkMode()
+        if mode != last_mode:
+            changed = True
+            last_mode = mode
 
         # if music mode is on, continue as normal
         if mode == "music":
-            changed = False
+            if changed == True:
+                print('🥁 Setting music mode')
+                changed = False
+
             respondToMusic(stream, bulbs)
 
         # if general mode, set general mode, and 
         # then check state again every second
         if mode == "general":
-            if changed == False:
+            if changed == True:
+                print('🔦 Setting general lighting mode')
                 setGeneral(bulbs)
-                print('setGeneral placeholders')
-                changed = True
+                changed = False
 
             time.sleep(1) # sleep so that we don't ddos redis
 
-        #check_running
-        #if running = False
-        #    if running_state == 'music':
-        #        set_to_general
-        #        running_state = 'general'
-        #    time.sleep(1) # sleep to avoid going crazy on redis
+        # do stuff every 100 steps
+        count += 1
 
-        #else:
-        #    if running_state == 'general':
-        #        running_state = 'music'
-
-
+        if count > 100:
+            time_elapsed = time.time()-timestamp
+            #print(f'FPS: {100/time_elapsed}') # debug framerate
+            timestamp = time.time()
+            count = 0
 
 # this is probably important TODO FIXME
 #stream.stop_stream()

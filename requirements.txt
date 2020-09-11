@@ -1,3 +1,4 @@
+adafruit-io==2.4.0
 appnope==0.1.0
 backcall==0.1.0
 certifi==2020.6.20
@@ -17,6 +18,7 @@ Jinja2==2.11.2
 kiwisolver==1.1.0
 MarkupSafe==1.1.1
 numpy==1.18.1
+paho-mqtt==1.5.0
 parso==0.5.2
 pexpect==4.7.0
 pickleshare==0.7.5
