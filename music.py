@@ -1,5 +1,8 @@
 # music
 import pyaudio
+import alsaerror
+import sys
+import io
 import numpy as np
 from filters import bassFilter, envelopeFilter, beatFilter
 
@@ -14,6 +17,7 @@ import flux_led_v3 as flux_led
 # connection check
 import requests
 import time
+import datetime
 
 # redis
 import redis
@@ -22,7 +26,21 @@ import pickle
 
 
 # set up redis connection
-r = redis.from_url(os.environ.get("REDIS_URL"))
+r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
+
+global_hue = 150
+settingTime = 0
+everyOther = True
+every60k = 0
+originalColors = []
+
+def printLog(log):
+    '''Generates standard time string and prints out'''
+
+    # Generate time string
+    st = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    print(f'[{st}] {log}')
 
 
 def loadLEDs():
@@ -30,9 +48,9 @@ def loadLEDs():
     to them.'''
 
     # Open ip.order.txt and read the IPs of the bulbs. It expects a list
-    # of IPs like 192.168.1.1, with one IP per line. The file should start
+    # of IPs like 192.168.1.1, with one IP per line. The file should end
     # with one empty line.
-    filepath = 'ip.order.txt'
+    filepath = '/home/pi/Music-LED/ip.order.txt'
 
     # Define variables
     ips = []
@@ -52,11 +70,13 @@ def loadLEDs():
 
     # Once the file has been read, the script will attempt to create
     # objects for each bulb.
-    print (f"💡 Connected to {len(ips)} LED strips")
+    printLog(f"💡 Connected to {len(ips)} LED strips")
 
     for ip in ips:
         try:
             bulb = flux_led.WifiLedBulb(ip)
+            #print(vars(bulb))
+            #print(bulb._WifiLedBulb__state_str)
             bulbs[cnt] = bulb
             lastOrder[cnt] = ""
             cnt = cnt + 1
@@ -65,27 +85,106 @@ def loadLEDs():
             print ("Unable to connect to bulb at [{}]: {}".format(ip,e))
             continue
     
+    #for bulb in bulbs:
+    #    bulbs[bulb].getBulbInfo()
     # Return the bulbs that were successfully innitiated
     return bulbs
 
 
+def getBulbState(bulbs):
+    """Gets bulb state"""
+    for bulb in bulbs:
+        bulbs[bulb].refreshState()
+        #print(vars(bulbs[bulb]))
+        bulb_ip = bulbs[bulb].ipaddr
+
+        bulb_state_raw = bulbs[bulb]._WifiLedBulb__state_str
+
+        #bulb_state = bulb_state_raw.split('(')[1].split(')')[0]
+
+        #bulb_colors = bulb_state.split(', ')
+        print(vars(bulbs[bulb]))
+        #print(bulb_ip, bulb_state_raw)
+    printLog('-----')
+    
+
+def hsv2rgb(h, s, v):
+    h = float(h)
+    s = float(s)
+    v = float(v)
+    h60 = h / 60.0
+    h60f = math.floor(h60)
+    hi = int(h60f) % 6
+    f = h60 - h60f
+    p = v * (1 - s)
+    q = v * (1 - f * s)
+    t = v * (1 - (1 - f) * s)
+    r, g, b = 0, 0, 0
+    if hi == 0: r, g, b = v, t, p
+    elif hi == 1: r, g, b = q, v, p
+    elif hi == 2: r, g, b = p, v, t
+    elif hi == 3: r, g, b = p, q, v
+    elif hi == 4: r, g, b = t, p, v
+    elif hi == 5: r, g, b = v, p, q
+    r, g, b = int(r * 255), int(g * 255), int(b * 255)
+    return r, g, b
+
+
 async def changeColor(bulbs, peak):
-    '''Change the color of LEDs based on the peak value'''
+    global global_hue
+    global settingTime
+    global everyOther
+    global every60k
 
     if peak < 255:
         # hack to accomodate for cray cray peak
         a_peak = peak*10
+        #if a_peak > 120:
+            #print(global_hue)
+            #global_hue += 30
+
+        thresh = 200
+
+        if (everyOther == True and a_peak > thresh):
+            everyOther = False
+            global_hue += 20
+        elif (everyOther == False and a_peak > thresh):
+            everyOther = True
+            global_hue -= 20
+
+        every60k += 1
+
+        if every60k > 600:
+            every60k = 1
+            print(f'change hue {global_hue}\n')
+            global_hue += 10
+
+
         if a_peak < 255:
             for bulb in bulbs:
-                bulbs[bulb].setRgb(a_peak,a_peak,a_peak)
+                # set minimum brightness
+                if a_peak < 80:
+                    a_peak = 20
+
+                # normalize peak 
+                normalized_peak = a_peak/255
+                r, g, b = hsv2rgb(global_hue, 1, normalized_peak)
+
+                settingTime = time.time()
+                if settingTime > time.time()+1:
+                    print(settingTime)
+                    print(time.time()+1)
+                    print('-----------------')
+                    print('bug')
+
+                bulbs[bulb].setRgb(r, g, b)
 
     else:
         print(peak)
 
 
 def processMusic(sample):
-    '''Process music with @BinaryBrain's filters'''
-
+    """Process music with @BinaryBrain's filters"""
     # Filter only bass component
     value = bassFilter(sample)
 
@@ -97,7 +196,9 @@ def processMusic(sample):
     envelope = envelopeFilter(value)
 
     # Filter out repeating bass sounds 100 - 180bpm
-    beat = beatFilter(envelope)
+    #beat = beatFilter(envelope)
+
+    #print(beat)
 
     return int(envelope)
 
@@ -112,26 +213,22 @@ def checkMode():
 
 
 def easeOutCubic(x):
-    '''Easing function'''
-
     return 1 - pow(1 - x, 3)
 
 
 def setGeneral(bulbs):
-    '''Set general lighting for when the music mode is disabled'''
+    #for i in range(255):
+    #    brightness = int(easeOutCubic(i/254)*254)
+    #    loop.run_until_complete(changeColor(bulbs, int(brightness/10)))
+    #    time.sleep(0.01)
 
-    # use an easing function to smoothyl turn on the LEDs
-    for i in range(255):
-        brightness = int(easeOutCubic(i/254)*254)
-        loop.run_until_complete(changeColor(bulbs, int(brightness/10)))
-        time.sleep(0.01)
+    for bulb in bulbs:
+        bulbs[bulb].setRgb(3, 1, 0)
 
 
 def respondToMusic(stream, bulbs):
-    '''Respond to every chunk read by the audio input'''
-
     # listen to music
-    data = np.frombuffer(stream.read(chunk, exception_on_overflow = False), dtype=np.int16)
+    data = np.fromstring(stream.read(chunk, exception_on_overflow = False),dtype=np.int16)
     peak=np.average(np.abs(data))*2
 
     # process value
@@ -157,48 +254,45 @@ def checkInternet():
     while retry:
         try:
             resp = requests.get('http://example.com')
-            print('🌍 Connected to internet')
+            printLog('🌍 Connected to internet')
             time.sleep(1)
             if resp.status_code/10==20:
                 retry = False
         except:
             time.sleep(1)
-            print('🕐 Waiting for connection...')
+            printLog('🕐 Waiting for connection...')
 
     return True
 
-def loadMicrophone():
-    '''Load microphone by setting it up and creating a pyaudio
-    stream that can be read.'''
 
-    # Configure options for audio capture
-    chunk = 2**10
+if __name__ == "__main__":
+    # wait for there to be an internet connection
+    checkInternet()
+
+    # set up the LEDs
+    bulbs = loadLEDs()
+
+    # set up the microphone
+    #chunk = 2**10
     form_1 = pyaudio.paInt16 # 16-bit resolution
     chans = 1 # 1 channel
     samp_rate = 44100 # 44.1kHz sampling rate
-    chunk = 256 # 2^12 samples for buffer
+    chunk = 730 # 2^12 samples for buffer
+    #chunk = 40000 # 2^12 samples for buffer
     dev_index = 0 # device index found by p.get_device_info_by_index(ii)
 
-    # Create pyaudio instantiation
-    audio = pyaudio.PyAudio() 
+    # Hide all the alsa warnings and instantiate pyaudio
+    #with noalsaerr():
+    #with nostdout():
+    #os.close(sys.stderr.fileno())
 
-    # Create pyaudio stream
+    audio = pyaudio.PyAudio() # create pyaudio instantiation
+
+    # create pyaudio stream
     stream = audio.open(format = form_1,rate = samp_rate,channels = chans, \
                         input_device_index = dev_index,input = True, \
                         frames_per_buffer=chunk)
 
-    return stream, chunk
-
-
-if __name__ == "__main__":
-    # Wait for there to be an internet connection
-    checkInternet()
-
-    # Set up the LEDs
-    bulbs = loadLEDs()
-
-    # Set up the microphone
-    stream, chunk = loadMicrophone()
 
     # start responding to music
     loop = asyncio.get_event_loop()
@@ -206,6 +300,7 @@ if __name__ == "__main__":
     changed = True
     last_mode = 'start'
     count = 0
+    timestamp_bug = 0
     timestamp = 0
 
     while True:
@@ -218,7 +313,7 @@ if __name__ == "__main__":
         # if music mode is on, continue as normal
         if mode == "music":
             if changed == True:
-                print('🥁 Setting music mode')
+                printLog('🥁 Setting music mode')
                 changed = False
 
             respondToMusic(stream, bulbs)
@@ -227,20 +322,35 @@ if __name__ == "__main__":
         # then check state again every second
         if mode == "general":
             if changed == True:
-                print('🔦 Setting general lighting mode')
+                printLog('🔦 Setting general lighting mode')
                 setGeneral(bulbs)
                 changed = False
+
+            #getBulbState(bulbs)
 
             time.sleep(1) # sleep so that we don't ddos redis
 
         # do stuff every 100 steps
         count += 1
-
+    
         if count > 100:
             time_elapsed = time.time()-timestamp
-            print(f'   Current FPS: {int(100/time_elapsed)}', end='\r') # debug framerate
+            fps = 100/time_elapsed
+            print(f'FPS: {fps}\r', end="\r") # debug framerate
+            #getBulbState(bulbs)
+            if (fps < 50 and mode != "general"):
+                time_bug = time.time()-timestamp_bug
+                timestamp_bug = time.time()
+                
+                if time_bug < 100000: # ignore the first error message on boot
+                    printLog(f'🔥 BUG at {round(time_bug,2)}s from last fail, {round(fps,2)} FPS')
             timestamp = time.time()
+
             count = 0
+
+        #if timestamp_bug == 0:
+        #    print(chr(27) + "[2J")
+        #    printLog('asdf')
 
 # this is probably important TODO FIXME
 #stream.stop_stream()
