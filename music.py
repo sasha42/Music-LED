@@ -12,7 +12,7 @@ import math
 import asyncio
 import datetime
 import copy
-import flux_led_v3 as flux_led
+import flux_led_v4 as flux_led
 
 # connection check
 import requests
@@ -28,6 +28,8 @@ import pickle
 # set up redis connection
 r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
 
+avg_last_ten = []
+last_ten_ts = 0
 global_hue = 150
 settingTime = 0
 everyOther = True
@@ -50,7 +52,7 @@ def loadLEDs():
     # Open ip.order.txt and read the IPs of the bulbs. It expects a list
     # of IPs like 192.168.1.1, with one IP per line. The file should end
     # with one empty line.
-    filepath = '/home/pi/Music-LED/ip.order.txt'
+    filepath = os.getenv("IP_ORDER", "ip.order.txt")
 
     # Define variables
     ips = []
@@ -156,7 +158,7 @@ async def changeColor(bulbs, peak):
 
         if every60k > 600:
             every60k = 1
-            print(f'change hue {global_hue}\n')
+            #print(f'change hue {global_hue}\n')
             global_hue += 10
 
 
@@ -227,6 +229,9 @@ def setGeneral(bulbs):
 
 
 def respondToMusic(stream, bulbs):
+    global avg_last_ten
+    global last_ten_ts
+
     # listen to music
     data = np.fromstring(stream.read(chunk, exception_on_overflow = False),dtype=np.int16)
     peak=np.average(np.abs(data))*2
@@ -235,14 +240,20 @@ def respondToMusic(stream, bulbs):
     value = processMusic(peak)
 
     last_ten.append(value)
-    if len(last_ten) > 1:
+    if len(last_ten) > 100:
         last_ten.pop(0)
     else:
         pass
-    avg_last_ten = int(sum(last_ten) / 1)
+    avg_last_ten = int(sum(last_ten) / 100)
+    if value+3 < avg_last_ten:
+        time_delta = time.time()-last_ten_ts
+        last_ten_ts = time.time()
+        #print(time_delta)
+        #print('beat')
 
     # change the color of LEDs
-    loop.run_until_complete(changeColor(bulbs, avg_last_ten))
+    #loop.run_until_complete(changeColor(bulbs, avg_last_ten))
+    loop.run_until_complete(changeColor(bulbs, value))
 
 
 def checkInternet():
@@ -278,7 +289,6 @@ if __name__ == "__main__":
     chans = 1 # 1 channel
     samp_rate = 44100 # 44.1kHz sampling rate
     chunk = 730 # 2^12 samples for buffer
-    #chunk = 40000 # 2^12 samples for buffer
     dev_index = 0 # device index found by p.get_device_info_by_index(ii)
 
     # Hide all the alsa warnings and instantiate pyaudio
