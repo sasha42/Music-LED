@@ -1,6 +1,16 @@
 <html>
     <head>
         <title>Music led mode control</title>
+	<style>
+	    #params {
+		background-color: #eee;
+		padding: 10px;
+		border-radius: 3px;
+	    }
+            .changed {
+                background-color: #fff3d8 !important;
+            }
+	</style>
     </head>
     <body>
         <h1>Music mode control</h1>
@@ -8,6 +18,9 @@
             <button type="submit" name="mode" value="music">Music mode ON</button>
             <button type="submit" name="mode" value="general">Music mode OFF</button>
         </form>
+	<!--<pre id="params" contenteditable="true">loading params...</pre>-->
+	<pre id="params">loading params...</pre>
+    <script type="text/javascript" src="/static/main.js"></script>
     </body>
 </html>
 
