@@ -17,11 +17,13 @@ jedi==0.15.2
 Jinja2==2.11.2
 kiwisolver==1.1.0
 MarkupSafe==1.1.1
+matplotlib==3.3.3
 numpy==1.18.1
 paho-mqtt==1.5.0
 parso==0.5.2
 pexpect==4.7.0
 pickleshare==0.7.5
+Pillow==8.0.1
 prompt-toolkit==3.0.2
 ptyprocess==0.6.0
 PyAudio==0.2.11
@@ -29,8 +31,10 @@ Pygments==2.5.2
 pyparsing==2.4.6
 python-dateutil==2.8.1
 pyusb==1.0.2
+PyWavelets==1.1.1
 redis==3.5.3
 requests==2.24.0
+scipy==1.5.4
 six==1.13.0
 traitlets==4.3.3
 urllib3==1.25.10

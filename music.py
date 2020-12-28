@@ -9,6 +9,7 @@ from filters import bassFilter, envelopeFilter, beatFilter
 # leds
 import time
 import math
+from math import sqrt
 import asyncio
 import datetime
 import copy
@@ -24,6 +25,9 @@ import redis
 import os
 import pickle
 
+# experimental
+from bpm_detection import bpm_detector
+
 
 # set up redis connection
 r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
@@ -35,6 +39,7 @@ settingTime = 0
 everyOther = True
 every60k = 0
 originalColors = []
+offset_values = []
 
 def printLog(log):
     '''Generates standard time string and prints out'''
@@ -132,11 +137,30 @@ def hsv2rgb(h, s, v):
     return r, g, b
 
 
+async def simpleChangeColor(bulbs, peak):
+
+    if peak < 255:
+        a_peak = peak*10
+
+        if a_peak < 255:
+            for bulb in bulbs:
+
+                r = int(a_peak)
+                g = int(a_peak)
+                b = int(a_peak)
+                # set color on lights
+                bulbs[bulb].setRgb(r, g, b)
+
+    else:
+        print(peak)
+
+
 async def changeColor(bulbs, peak):
     global global_hue
     global settingTime
     global everyOther
     global every60k
+    global offset_values
 
     if peak < 255:
         # hack to accomodate for cray cray peak
@@ -163,13 +187,24 @@ async def changeColor(bulbs, peak):
 
 
         if a_peak < 255:
+            # set up offset
+            offset_length = 1
+            offset_values.append(a_peak)
+            if len(offset_values) > offset_length:
+                del offset_values[0]
+            else:
+                pass
+
             for bulb in bulbs:
                 # set minimum brightness
-                if a_peak < 80:
+                if offset_values[0] < 50:
                     a_peak = 20
+                else:
+                    a_peak = offset_values[0]
 
                 # normalize peak 
                 normalized_peak = a_peak/255
+                global_hue = 0
                 r, g, b = hsv2rgb(global_hue, 1, normalized_peak)
 
                 settingTime = time.time()
@@ -179,6 +214,7 @@ async def changeColor(bulbs, peak):
                     print('-----------------')
                     print('bug')
 
+                # set color on lights
                 bulbs[bulb].setRgb(r, g, b)
 
     else:
@@ -228,13 +264,99 @@ def setGeneral(bulbs):
         bulbs[bulb].setRgb(3, 1, 0)
 
 
+
+
+from scipy import fft, arange
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.io import wavfile
+import os
+
+
+def frequency_spectrum(x, sf):
+    """
+    Derive frequency spectrum of a signal from time domain
+    :param x: signal in the time domain
+    :param sf: sampling frequency
+    :returns frequencies and their content distribution
+    """
+    x = x - np.average(x)  # zero-centering
+
+    n = len(x)
+    #print(n)
+    k = arange(n)
+    tarr = n / float(sf)
+    frqarr = k / float(tarr)  # two sides frequency range
+
+    frqarr = frqarr[range(n // 2)]  # one side frequency range
+
+    x = fft(x) / n  # fft computing and normalization
+    x = x[range(n // 2)]
+
+    return frqarr, abs(x)
+
+
+list_bulb_values = []
+
 def respondToMusic(stream, bulbs):
     global avg_last_ten
     global last_ten_ts
+    global list_bulb_values
 
     # listen to music
     data = np.fromstring(stream.read(chunk, exception_on_overflow = False),dtype=np.int16)
+
+    #plt.plot(data)
+    #plt.savefig("data.png")
+
+    frequencies, distribution = frequency_spectrum(data, stream._rate)
+
+    #plt.figure()
+    #plt.plot(frequencies)
+    #plt.savefig("freq.png")
+
+    #plt.figure()
+    #plt.plot(distribution)
+    #plt.savefig("distr.png")
+
+    #print(f'Shape: {data.shape}')
+    #print(f'Frequencies: {frequencies}')
+    #print(f'Distribution: {distribution}')
+    #print("Freq shape", len(frequencies))
+
+    #print('😇 after')
+    FREQ_MIN = 20
+    FREQ_MAX = 50
+    #AVERAGE_OVER_LAST = 20 # samples
+    AVERAGE_OVER_LAST = 10 # samples
+    new_value = np.average(np.abs(distribution[FREQ_MIN:FREQ_MAX]))
+
+
+    # volume multiplier
+    volumeFactor = 0.5
+    multiplier = pow(2, (sqrt(sqrt(sqrt(volumeFactor))) * 192 - 192)/6)
+    new_value *= multiplier #np.multiply(new_value, volumeFactor, out=new_value, casting="unsafe")
+
+    list_bulb_values.append(new_value)
+    list_bulb_values = list_bulb_values[-100:]
+    value = np.average(list_bulb_values[-AVERAGE_OVER_LAST:])
+
+    value -= np.min(list_bulb_values)
+    value *= 255/(np.max(list_bulb_values)-np.min(list_bulb_values))
+    #value -= np.median(list_bulb_values)
+    #value *= 250/(np.max(list_bulb_values)-np.median(list_bulb_values)))
+
+    try:
+        loop.run_until_complete(changeColor(bulbs, int(value/20)))
+    except:
+        pass
+    return
+
     peak=np.average(np.abs(data))*2
+
+    # test bpm
+    #bpm, fs = bpm_detector(data, 44100)
+    #print(bpm)
 
     # process value
     value = processMusic(peak)
@@ -287,8 +409,12 @@ if __name__ == "__main__":
     #chunk = 2**10
     form_1 = pyaudio.paInt16 # 16-bit resolution
     chans = 1 # 1 channel
-    samp_rate = 44100 # 44.1kHz sampling rate
-    chunk = 730 # 2^12 samples for buffer
+    #samp_rate = 44100 # 44.1kHz sampling rate
+    samp_rate = 16000
+    #chunk = int(0.2*samp_rate)
+    chunk = int(730/3.5)
+    #chunk = 730# 2^12 samples for buffer
+    #chunk = int(144000/4) # 2^12 samples for buffer
     dev_index = 0 # device index found by p.get_device_info_by_index(ii)
 
     # Hide all the alsa warnings and instantiate pyaudio
@@ -315,30 +441,31 @@ if __name__ == "__main__":
 
     while True:
         # check if music mode is on or off
-        mode = checkMode()
-        if mode != last_mode:
-            changed = True
-            last_mode = mode
+        mode = 'music'
+        #mode = checkMode()
+        #if mode != last_mode:
+        #    changed = True
+        #    last_mode = mode
 
         # if music mode is on, continue as normal
-        if mode == "music":
-            if changed == True:
-                printLog('🥁 Setting music mode')
-                changed = False
+        #if mode == "music":
+        #    if changed == True:
+        #printLog('🥁 Setting music mode')
+        changed = False
 
-            respondToMusic(stream, bulbs)
+        respondToMusic(stream, bulbs)
 
         # if general mode, set general mode, and 
         # then check state again every second
-        if mode == "general":
-            if changed == True:
-                printLog('🔦 Setting general lighting mode')
-                setGeneral(bulbs)
-                changed = False
+        #if mode == "general":
+        #    if changed == True:
+        #        printLog('🔦 Setting general lighting mode')
+        #        setGeneral(bulbs)
+        #    changed = False
 
             #getBulbState(bulbs)
 
-            time.sleep(1) # sleep so that we don't ddos redis
+        #    time.sleep(1) # sleep so that we don't ddos redis
 
         # do stuff every 100 steps
         count += 1
@@ -347,6 +474,7 @@ if __name__ == "__main__":
             time_elapsed = time.time()-timestamp
             fps = 100/time_elapsed
             print(f'FPS: {fps}\r', end="\r") # debug framerate
+            #print(avg_last_ten)
             #getBulbState(bulbs)
             if (fps < 50 and mode != "general"):
                 time_bug = time.time()-timestamp_bug
