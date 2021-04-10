@@ -9,11 +9,10 @@ from filters import bassFilter, envelopeFilter, beatFilter
 # leds
 import time
 import math
-from math import sqrt
 import asyncio
 import datetime
 import copy
-import flux_led_v4 as flux_led
+import flux_led_v3 as flux_led
 
 # connection check
 import requests
@@ -27,11 +26,13 @@ import pickle
 
 # experimental
 from bpm_detection import bpm_detector
+from devices import getDevices, simpleList
 
 
 # set up redis connection
 r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
 
+# pls don't judge my global variables
 avg_last_ten = []
 last_ten_ts = 0
 global_hue = 150
@@ -41,13 +42,13 @@ every60k = 0
 originalColors = []
 offset_values = []
 
-def printLog(log):
+def printLog(log, end=None):
     '''Generates standard time string and prints out'''
 
     # Generate time string
     st = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    print(f'[{st}] {log}')
+    print(f'[{st}] {log}', end=end)
 
 
 def loadLEDs():
@@ -57,7 +58,7 @@ def loadLEDs():
     # Open ip.order.txt and read the IPs of the bulbs. It expects a list
     # of IPs like 192.168.1.1, with one IP per line. The file should end
     # with one empty line.
-    filepath = os.getenv("IP_ORDER", "ip.order.txt")
+    filepath = '/home/pi/Music-LED/ip.order.txt'
 
     # Define variables
     ips = []
@@ -137,24 +138,6 @@ def hsv2rgb(h, s, v):
     return r, g, b
 
 
-async def simpleChangeColor(bulbs, peak):
-
-    if peak < 255:
-        a_peak = peak*10
-
-        if a_peak < 255:
-            for bulb in bulbs:
-
-                r = int(a_peak)
-                g = int(a_peak)
-                b = int(a_peak)
-                # set color on lights
-                bulbs[bulb].setRgb(r, g, b)
-
-    else:
-        print(peak)
-
-
 async def changeColor(bulbs, peak):
     global global_hue
     global settingTime
@@ -185,7 +168,6 @@ async def changeColor(bulbs, peak):
             #print(f'change hue {global_hue}\n')
             global_hue += 10
 
-
         if a_peak < 255:
             # set up offset
             offset_length = 1
@@ -197,14 +179,13 @@ async def changeColor(bulbs, peak):
 
             for bulb in bulbs:
                 # set minimum brightness
-                if offset_values[0] < 50:
+                if offset_values[0] < 80:
                     a_peak = 20
                 else:
                     a_peak = offset_values[0]
 
                 # normalize peak 
                 normalized_peak = a_peak/255
-                global_hue = 0
                 r, g, b = hsv2rgb(global_hue, 1, normalized_peak)
 
                 settingTime = time.time()
@@ -234,11 +215,12 @@ def processMusic(sample):
     envelope = envelopeFilter(value)
 
     # Filter out repeating bass sounds 100 - 180bpm
-    #beat = beatFilter(envelope)
+    beat = beatFilter(envelope)
 
     #print(beat)
 
     return int(envelope)
+    #return int(beat)
 
 
 def checkMode():
@@ -264,93 +246,29 @@ def setGeneral(bulbs):
         bulbs[bulb].setRgb(3, 1, 0)
 
 
-
-
-from scipy import fft, arange
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.io import wavfile
-import os
-
-
-def frequency_spectrum(x, sf):
-    """
-    Derive frequency spectrum of a signal from time domain
-    :param x: signal in the time domain
-    :param sf: sampling frequency
-    :returns frequencies and their content distribution
-    """
-    x = x - np.average(x)  # zero-centering
-
-    n = len(x)
-    #print(n)
-    k = arange(n)
-    tarr = n / float(sf)
-    frqarr = k / float(tarr)  # two sides frequency range
-
-    frqarr = frqarr[range(n // 2)]  # one side frequency range
-
-    x = fft(x) / n  # fft computing and normalization
-    x = x[range(n // 2)]
-
-    return frqarr, abs(x)
-
-
-list_bulb_values = []
-
 def respondToMusic(stream, bulbs):
     global avg_last_ten
     global last_ten_ts
-    global list_bulb_values
 
     # listen to music
-    data = np.fromstring(stream.read(chunk, exception_on_overflow = False),dtype=np.int16)
-
-    #plt.plot(data)
-    #plt.savefig("data.png")
-
-    frequencies, distribution = frequency_spectrum(data, stream._rate)
-
-    #plt.figure()
-    #plt.plot(frequencies)
-    #plt.savefig("freq.png")
-
-    #plt.figure()
-    #plt.plot(distribution)
-    #plt.savefig("distr.png")
-
-    #print(f'Shape: {data.shape}')
-    #print(f'Frequencies: {frequencies}')
-    #print(f'Distribution: {distribution}')
-    #print("Freq shape", len(frequencies))
-
-    #print('😇 after')
-    FREQ_MIN = 20
-    FREQ_MAX = 50
-    #AVERAGE_OVER_LAST = 20 # samples
-    AVERAGE_OVER_LAST = 10 # samples
-    new_value = np.average(np.abs(distribution[FREQ_MIN:FREQ_MAX]))
-
-
-    # volume multiplier
-    volumeFactor = 0.5
-    multiplier = pow(2, (sqrt(sqrt(sqrt(volumeFactor))) * 192 - 192)/6)
-    new_value *= multiplier #np.multiply(new_value, volumeFactor, out=new_value, casting="unsafe")
-
-    list_bulb_values.append(new_value)
-    list_bulb_values = list_bulb_values[-100:]
-    value = np.average(list_bulb_values[-AVERAGE_OVER_LAST:])
-
-    value -= np.min(list_bulb_values)
-    value *= 255/(np.max(list_bulb_values)-np.min(list_bulb_values))
-    #value -= np.median(list_bulb_values)
-    #value *= 250/(np.max(list_bulb_values)-np.median(list_bulb_values)))
-
-    try:
-        loop.run_until_complete(changeColor(bulbs, int(value/20)))
-    except:
-        pass
-    return
+    data = np.frombuffer(stream.read(chunk, exception_on_overflow = False),dtype=np.int16)
+    #arr = data
+    #print(data.shape)
+    
+    # Printing type of arr object
+    #print("Array is of type: ", type(arr))
+    # 
+    ## Printing array dimensions (axes)
+    #print("No. of dimensions: ", arr.ndim)
+    # 
+    ## Printing shape of array
+    #print("Shape of array: ", arr.shape)
+    # 
+    ## Printing size (total number of elements) of array
+    #print("Size of array: ", arr.size)
+    # 
+    ## Printing type of elements in array
+    #print("Array stores elements of type: ", arr.dtype)
 
     peak=np.average(np.abs(data))*2
 
@@ -398,29 +316,23 @@ def checkInternet():
     return True
 
 
-if __name__ == "__main__":
-    # wait for there to be an internet connection
-    checkInternet()
+def createStream():
+    """Creates a PulseAudio stream and handles choosing the
+    right input device to capture sound"""
 
-    # set up the LEDs
-    bulbs = loadLEDs()
+    # Get all input devices
+    devices = getDevices()
+    d = devices[0] # Change device id here for now
+    printLog(f'🎙  Found {len(devices)} input devices')
+    printLog(f'🎙  Connected to {d["name"]}')
 
     # set up the microphone
-    #chunk = 2**10
     form_1 = pyaudio.paInt16 # 16-bit resolution
-    chans = 1 # 1 channel
-    #samp_rate = 44100 # 44.1kHz sampling rate
-    samp_rate = 16000
-    #chunk = int(0.2*samp_rate)
-    chunk = int(730/3.5)
-    #chunk = 730# 2^12 samples for buffer
-    #chunk = int(144000/4) # 2^12 samples for buffer
-    dev_index = 0 # device index found by p.get_device_info_by_index(ii)
-
-    # Hide all the alsa warnings and instantiate pyaudio
-    #with noalsaerr():
-    #with nostdout():
-    #os.close(sys.stderr.fileno())
+    chans = d['channels'] # 1 channel
+    samp_rate = d['rate'] # 44.1kHz sampling rate
+    #chunk = 730 # 2^12 samples for buffer
+    chunk = 730 # 2^12 samples for buffer
+    dev_index = d['dev_index'] # device index found by p.get_device_info_by_index(ii)
 
     audio = pyaudio.PyAudio() # create pyaudio instantiation
 
@@ -429,6 +341,18 @@ if __name__ == "__main__":
                         input_device_index = dev_index,input = True, \
                         frames_per_buffer=chunk)
 
+    return stream, chunk
+
+
+if __name__ == "__main__":
+    # wait for there to be an internet connection
+    checkInternet()
+
+    # set up the LEDs
+    bulbs = loadLEDs()
+
+    # Set up audio input
+    stream, chunk = createStream()
 
     # start responding to music
     loop = asyncio.get_event_loop()
@@ -442,30 +366,29 @@ if __name__ == "__main__":
     while True:
         # check if music mode is on or off
         mode = 'music'
-        #mode = checkMode()
-        #if mode != last_mode:
-        #    changed = True
-        #    last_mode = mode
+        mode = checkMode()
+        if mode != last_mode:
+            changed = True
+            last_mode = mode
 
         # if music mode is on, continue as normal
-        #if mode == "music":
-        #    if changed == True:
-        #printLog('🥁 Setting music mode')
-        changed = False
-
-        respondToMusic(stream, bulbs)
+        if mode == "music":
+            if changed == True:
+                printLog('🥁 Setting music mode')
+                changed = False
+            respondToMusic(stream, bulbs)
 
         # if general mode, set general mode, and 
         # then check state again every second
-        #if mode == "general":
-        #    if changed == True:
-        #        printLog('🔦 Setting general lighting mode')
-        #        setGeneral(bulbs)
-        #    changed = False
+        if mode == "general":
+            if changed == True:
+                printLog('🔦 Setting general lighting mode')
+                setGeneral(bulbs)
+                changed = False
 
             #getBulbState(bulbs)
 
-        #    time.sleep(1) # sleep so that we don't ddos redis
+            time.sleep(1) # sleep so that we don't ddos redis
 
         # do stuff every 100 steps
         count += 1
@@ -473,7 +396,7 @@ if __name__ == "__main__":
         if count > 100:
             time_elapsed = time.time()-timestamp
             fps = 100/time_elapsed
-            print(f'FPS: {fps}\r', end="\r") # debug framerate
+            printLog(f'🔥 FPS: {int(fps)}', end='\r')
             #print(avg_last_ten)
             #getBulbState(bulbs)
             if (fps < 50 and mode != "general"):
