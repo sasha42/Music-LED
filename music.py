@@ -12,7 +12,7 @@ import math
 import asyncio
 import datetime
 import copy
-import flux_led_v3 as flux_led
+import flux_led_v4 as flux_led
 
 # connection check
 import requests
@@ -26,7 +26,8 @@ import pickle
 
 # experimental
 from bpm_detection import bpm_detector
-from devices import getDevices, simpleList
+#from devices import getDevices, simpleList
+import devices
 
 
 # set up redis connection
@@ -49,54 +50,6 @@ def printLog(log, end=None):
     st = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     print(f'[{st}] {log}', end=end)
-
-
-def loadLEDs():
-    '''Loads IPs from ip.order.txt into memory, and attemps to connect
-    to them.'''
-
-    # Open ip.order.txt and read the IPs of the bulbs. It expects a list
-    # of IPs like 192.168.1.1, with one IP per line. The file should end
-    # with one empty line.
-    filepath = '/home/pi/Music-LED/ip.order.txt'
-
-    # Define variables
-    ips = []
-    bulbs = {}
-    lastOrder = {}
-
-    with open(filepath) as fp:
-        line = fp.readline()
-        cnt = 1
-        while line:
-            line = fp.readline()
-            if line.strip() == "":
-                continue
-            ip = line.strip()
-
-            ips.append(ip)
-
-    # Once the file has been read, the script will attempt to create
-    # objects for each bulb.
-    printLog(f"💡 Connected to {len(ips)} LED strips")
-
-    for ip in ips:
-        try:
-            bulb = flux_led.WifiLedBulb(ip)
-            #print(vars(bulb))
-            #print(bulb._WifiLedBulb__state_str)
-            bulbs[cnt] = bulb
-            lastOrder[cnt] = ""
-            cnt = cnt + 1
-
-        except Exception as e:
-            print ("Unable to connect to bulb at [{}]: {}".format(ip,e))
-            continue
-    
-    #for bulb in bulbs:
-    #    bulbs[bulb].getBulbInfo()
-    # Return the bulbs that were successfully innitiated
-    return bulbs
 
 
 def getBulbState(bulbs):
@@ -186,7 +139,8 @@ async def changeColor(bulbs, peak):
 
                 # normalize peak 
                 normalized_peak = a_peak/255
-                r, g, b = hsv2rgb(global_hue, 1, normalized_peak)
+                #r, g, b = hsv2rgb(global_hue, 1, normalized_peak)
+                r, g, b = hsv2rgb(1, 1, normalized_peak)
 
                 settingTime = time.time()
                 if settingTime > time.time()+1:
@@ -321,17 +275,17 @@ def createStream():
     right input device to capture sound"""
 
     # Get all input devices
-    devices = getDevices()
-    d = devices[0] # Change device id here for now
-    printLog(f'🎙  Found {len(devices)} input devices')
+    _devices = devices.getDevices()
+    d = _devices[0] # Change device id here for now
+    printLog(f'🎙  Found {len(_devices)} input devices')
     printLog(f'🎙  Connected to {d["name"]}')
 
     # set up the microphone
     form_1 = pyaudio.paInt16 # 16-bit resolution
     chans = d['channels'] # 1 channel
     samp_rate = d['rate'] # 44.1kHz sampling rate
-    #chunk = 730 # 2^12 samples for buffer
     chunk = 730 # 2^12 samples for buffer
+    #/chunk = int(730*0.43) # 2^12 samples for buffer
     dev_index = d['dev_index'] # device index found by p.get_device_info_by_index(ii)
 
     audio = pyaudio.PyAudio() # create pyaudio instantiation
@@ -349,7 +303,7 @@ if __name__ == "__main__":
     checkInternet()
 
     # set up the LEDs
-    bulbs = loadLEDs()
+    bulbs = devices.loadLEDs()
 
     # Set up audio input
     stream, chunk = createStream()
@@ -366,7 +320,7 @@ if __name__ == "__main__":
     while True:
         # check if music mode is on or off
         mode = 'music'
-        mode = checkMode()
+        #mode = checkMode()
         if mode != last_mode:
             changed = True
             last_mode = mode
