@@ -2,7 +2,7 @@
 import pyaudio
 import alsaerror
 from flux_led_v4 import BulbScanner
-from music import printLog
+from music import printLog, timeout
 import flux_led_v4 as flux_led
 
 
@@ -88,17 +88,18 @@ def loadLEDs():
     printLog(f"💡 Connected to {len(ips)} LED strips")
 
     for ip in ips:
-        try:
-            bulb = flux_led.WifiLedBulb(ip)
-            #print(vars(bulb))
-            #print(bulb._WifiLedBulb__state_str)
-            bulbs[cnt] = bulb
-            lastOrder[cnt] = ""
-            cnt = cnt + 1
+        with timeout(1):
+            try:
+                bulb = flux_led.WifiLedBulb(ip, timeout=0.1)
+                #print(vars(bulb))
+                #print(bulb._WifiLedBulb__state_str)
+                bulbs[cnt] = bulb
+                lastOrder[cnt] = ""
+                cnt = cnt + 1
 
-        except Exception as e:
-            print ("Unable to connect to bulb at [{}]: {}".format(ip,e))
-            continue
+            except Exception as e:
+                print ("Unable to connect to bulb at [{}]: {}".format(ip,e))
+                continue
     
     #for bulb in bulbs:
     #    bulbs[bulb].getBulbInfo()

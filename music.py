@@ -1,6 +1,6 @@
 # music
 import pyaudio
-import alsaerror
+#import alsaerror
 import sys
 import io
 import numpy as np
@@ -25,9 +25,11 @@ import os
 import pickle
 
 # experimental
-from bpm_detection import bpm_detector
+#from bpm_detection import bpm_detector
 #from devices import getDevices, simpleList
 import devices
+import signal
+from contextlib import contextmanager
 
 
 # set up redis connection
@@ -42,6 +44,30 @@ everyOther = True
 every60k = 0
 originalColors = []
 offset_values = []
+
+
+@contextmanager
+def timeout(time):
+    # Register a function to raise a TimeoutError on the signal.
+    signal.signal(signal.SIGALRM, raise_timeout)
+    # Schedule the signal to be sent after ``time``.
+    signal.alarm(time)
+
+    try:
+        yield
+    except TimeoutError:
+        pass
+    finally:
+        # Unregister the signal so it won't be triggered
+        # if the timeout is not reached.
+        signal.signal(signal.SIGALRM, signal.SIG_IGN)
+
+
+def raise_timeout(signum, frame):
+    #print('LED timedout')
+    #raise TimeoutError
+    raise RuntimeError
+
 
 def printLog(log, end=None):
     '''Generates standard time string and prints out'''
@@ -150,7 +176,8 @@ async def changeColor(bulbs, peak):
                     print('bug')
 
                 # set color on lights
-                bulbs[bulb].setRgb(r, g, b)
+                with timeout(1):
+                    bulbs[bulb].setRgb(r, g, b)
 
     else:
         print(peak)
@@ -302,70 +329,80 @@ if __name__ == "__main__":
     # wait for there to be an internet connection
     checkInternet()
 
-    # set up the LEDs
-    bulbs = devices.loadLEDs()
-
     # Set up audio input
     stream, chunk = createStream()
 
-    # start responding to music
-    loop = asyncio.get_event_loop()
-    last_ten = [] # avg values across 10 samples
-    changed = True
-    last_mode = 'start'
-    count = 0
-    timestamp_bug = 0
-    timestamp = 0
-
     while True:
-        # check if music mode is on or off
-        mode = 'music'
-        #mode = checkMode()
-        if mode != last_mode:
+        try:
+            # set up the LEDs
+            with timeout(1): # 10 s timeout
+                bulbs = devices.loadLEDs()
+
+            if len(bulbs) == 0:
+                printLog("No lights connected!")
+                raise RuntimeError
+
+            # start responding to music
+            loop = asyncio.get_event_loop()
+            last_ten = [] # avg values across 10 samples
             changed = True
-            last_mode = mode
-
-        # if music mode is on, continue as normal
-        if mode == "music":
-            if changed == True:
-                printLog('🥁 Setting music mode')
-                changed = False
-            respondToMusic(stream, bulbs)
-
-        # if general mode, set general mode, and 
-        # then check state again every second
-        if mode == "general":
-            if changed == True:
-                printLog('🔦 Setting general lighting mode')
-                setGeneral(bulbs)
-                changed = False
-
-            #getBulbState(bulbs)
-
-            time.sleep(1) # sleep so that we don't ddos redis
-
-        # do stuff every 100 steps
-        count += 1
-    
-        if count > 100:
-            time_elapsed = time.time()-timestamp
-            fps = 100/time_elapsed
-            printLog(f'🔥 FPS: {int(fps)}', end='\r')
-            #print(avg_last_ten)
-            #getBulbState(bulbs)
-            if (fps < 50 and mode != "general"):
-                time_bug = time.time()-timestamp_bug
-                timestamp_bug = time.time()
-                
-                if time_bug < 100000: # ignore the first error message on boot
-                    printLog(f'🔥 BUG at {round(time_bug,2)}s from last fail, {round(fps,2)} FPS')
-            timestamp = time.time()
-
+            last_mode = 'start'
             count = 0
+            timestamp_bug = 0
+            timestamp = 0
 
-        #if timestamp_bug == 0:
-        #    print(chr(27) + "[2J")
-        #    printLog('asdf')
+            while True:
+                # check if music mode is on or off
+                mode = 'music'
+                mode = checkMode()
+                if mode != last_mode:
+                    changed = True
+                    last_mode = mode
+
+                # if music mode is on, continue as normal
+                if mode == "music":
+                    if changed == True:
+                        printLog('🥁 Setting music mode')
+                        changed = False
+                    respondToMusic(stream, bulbs)
+
+                # if general mode, set general mode, and 
+                # then check state again every second
+                if mode == "general":
+                    if changed == True:
+                        printLog('🔦 Setting general lighting mode')
+                        setGeneral(bulbs)
+                        changed = False
+
+                    #getBulbState(bulbs)
+
+                    time.sleep(1) # sleep so that we don't ddos redis
+
+                # do stuff every 100 steps
+                count += 1
+            
+                if count > 100:
+                    time_elapsed = time.time()-timestamp
+                    fps = 100/time_elapsed
+                    printLog(f'🔥 FPS: {int(fps)}', end='\r')
+                    #print(avg_last_ten)
+                    #getBulbState(bulbs)
+                    if (fps < 50 and mode != "general"):
+                        time_bug = time.time()-timestamp_bug
+                        timestamp_bug = time.time()
+                        
+                        if time_bug < 100000: # ignore the first error message on boot
+                            printLog(f'🔥 BUG at {round(time_bug,2)}s from last fail, {round(fps,2)} FPS')
+                    timestamp = time.time()
+
+                    count = 0
+
+                #if timestamp_bug == 0:
+                #    print(chr(27) + "[2J")
+                #    printLog('asdf')
+        except RuntimeError:
+            printLog('Timed out, retrying in 5 seconds')
+            time.sleep(5)
 
 # this is probably important TODO FIXME
 #stream.stop_stream()

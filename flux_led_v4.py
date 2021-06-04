@@ -554,10 +554,17 @@ class WifiLedBulb():
             return v
 
     def connect(self, retry=0):
+        #print("connect " + repr(self))
         self.close()
         try:
+            socket.setdefaulttimeout(10)
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._socket.settimeout(self.timeout)
+            self._socket.setblocking(True)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            self._socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 1)
+            self._socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 1)
+            self._socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 1)
             self._socket.connect((self.ipaddr, self.port))
         except socket.error:
             if retry < 1:
@@ -789,7 +796,8 @@ class WifiLedBulb():
 
         try:
             self._send_msg(msg)
-        except socket.error:
+        except socket.error as e:
+            print(repr(self) + e)
             if retry > 0:
                 self.connect()
                 self._change_state(max(retry-1, 0), turn_on)
@@ -984,7 +992,8 @@ class WifiLedBulb():
         # send the message
         try:
             self._send_msg(msg)
-        except socket.error:
+        except socket.error as e:
+            print(repr(self) + e)
             if retry:
                 self.connect()
                 self.setRgbw(r,g,b,w, persist=persist, brightness=brightness,
@@ -1015,7 +1024,10 @@ class WifiLedBulb():
             csum = sum(bytes) & 0xFF
             bytes.append(csum)
         with self._lock:
-            self._socket.send(bytes)
+            try:
+                self._socket.send(bytes)
+            except socket.timeout:
+                print('socket error')
 
     def _read_msg(self, expected):
         remaining = expected
