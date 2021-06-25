@@ -19,6 +19,13 @@ The installation varies based on the device, but you run the code in the same wa
 ## LED configuration
 You will need a list of IPs to place into `ip.order.txt`. An example configuration has been provided. The list should contain 1 IP per line. The file should end with a blank line. 
 
+You can generate a list of IPs using:
+
+```
+pip3 install flux_led
+lux_led --scan | awk '{print $2}'
+```
+
 ## Mac setup
 You will need to install the portaudio plugin through brew:
 ```
