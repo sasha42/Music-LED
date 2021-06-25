@@ -22,8 +22,7 @@ You will need a list of IPs to place into `ip.order.txt`. An example configurati
 You can generate a list of IPs using:
 
 ```
-pip3 install flux_led
-lux_led --scan | awk '{print $2}'
+./flux_led_v4.py --scan | awk '{print $2}'
 ```
 
 ## Mac setup
