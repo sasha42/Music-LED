@@ -54,7 +54,7 @@ Inside of `/usr/share/alsa/alsa.conf` (you will need to edit this with sudo), yo
 ```
 # install virtual environment
 # optional but highly recommended
-sudo pip3 install virtual env
+sudo pip3 install virtualenv
 virtualenv venv
 source venv/bin/activate
 
