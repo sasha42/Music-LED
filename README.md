@@ -19,6 +19,12 @@ The installation varies based on the device, but you run the code in the same wa
 ## LED configuration
 You will need a list of IPs to place into `ip.order.txt`. An example configuration has been provided. The list should contain 1 IP per line. The file should end with a blank line. 
 
+You can generate a list of IPs using:
+
+```
+./flux_led_v4.py --scan | awk '{print $2}'
+```
+
 ## Mac setup
 You will need to install the portaudio plugin through brew:
 ```
@@ -54,7 +60,7 @@ Inside of `/usr/share/alsa/alsa.conf` (you will need to edit this with sudo), yo
 ```
 # install virtual environment
 # optional but highly recommended
-sudo pip3 install virtual env
+sudo pip3 install virtualenv
 virtualenv venv
 source venv/bin/activate
 
@@ -97,6 +103,12 @@ You will then need to enable the service with `sudo systemctl enable musicled.se
 
 ## Running
 You will need to have `redis-server` installed and running on your computer.
+Put the mode in the redis server,
+
+```
+$ redis-cli
+127.0.0.1:6379> set mode "(dp0\nS'mode'\np1\nS'music'\np2\ns."
+```
 
 ```
 export REDIS_URL='redis://localhost:6379'
