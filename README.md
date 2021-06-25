@@ -104,6 +104,12 @@ You will then need to enable the service with `sudo systemctl enable musicled.se
 
 ## Running
 You will need to have `redis-server` installed and running on your computer.
+Put the mode in the redis server,
+
+```
+$ redis-cli
+127.0.0.1:6379> set mode "music"
+```
 
 ```
 export REDIS_URL='redis://localhost:6379'
