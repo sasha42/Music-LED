@@ -108,7 +108,7 @@ Put the mode in the redis server,
 
 ```
 $ redis-cli
-127.0.0.1:6379> set mode "music"
+127.0.0.1:6379> set mode "(dp0\nS'mode'\np1\nS'music'\np2\ns."
 ```
 
 ```
