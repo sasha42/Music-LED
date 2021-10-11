@@ -130,6 +130,61 @@ def simpleBulbList(bulbs):
     return f"💡 found {len(bulbs)} bulbs"
 
 
+def getBulbState(bulbs):
+    """Gets bulb state"""
+    for bulb in bulbs:
+        bulbs[bulb].refreshState()
+        #print(vars(bulbs[bulb]))
+        bulb_ip = bulbs[bulb].ipaddr
+
+        bulb_state_raw = bulbs[bulb]._WifiLedBulb__state_str
+
+        #bulb_state = bulb_state_raw.split('(')[1].split(')')[0]
+
+        #bulb_colors = bulb_state.split(', ')
+        print(vars(bulbs[bulb]))
+        #print(bulb_ip, bulb_state_raw)
+    printLog('-----')
+    
+
+def setGeneral(bulbs):
+    #for i in range(255):
+    #    brightness = int(easeOutCubic(i/254)*254)
+    #    loop.run_until_complete(changeColor(bulbs, int(brightness/10)))
+    #    time.sleep(0.01)
+
+    for bulb in bulbs:
+        bulbs[bulb].setRgb(30, 10, 1)
+
+
+def createStream():
+    """Creates a PulseAudio stream and handles choosing the
+    right input device to capture sound"""
+
+    # Get all input devices
+    _devices = devices.getDevices()
+    d = _devices[0] # Change device id here for now
+    printLog(f'🎙  Found {len(_devices)} input devices')
+    printLog(f'🎙  Connected to {d["name"]}')
+
+    # set up the microphone
+    form_1 = pyaudio.paInt16 # 16-bit resolution
+    chans = d['channels'] # 1 channel
+    samp_rate = d['rate'] # 44.1kHz sampling rate
+    chunk = 730 # 2^12 samples for buffer
+    #/chunk = int(730*0.43) # 2^12 samples for buffer
+    dev_index = d['dev_index'] # device index found by p.get_device_info_by_index(ii)
+
+    audio = pyaudio.PyAudio() # create pyaudio instantiation
+
+    # create pyaudio stream
+    stream = audio.open(format = form_1,rate = samp_rate,channels = chans, \
+                        input_device_index = dev_index,input = True, \
+                        frames_per_buffer=chunk)
+
+    return stream, chunk
+
+
 if __name__ == "__main__":
     devices = getDevices()
     simple_devices = simpleList(devices)

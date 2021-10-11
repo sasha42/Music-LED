@@ -1,28 +1,16 @@
 # music
 import pyaudio
-#import alsaerror
 import numpy as np
-from filters import bassFilter, envelopeFilter, beatFilter
-
-# leds
+from utils.filters import bassFilter, envelopeFilter, beatFilter
 import time
 import math
 import asyncio
-import datetime
-import flux_led_v4 as flux_led
-
-# connection check
-import requests
-
-# redis
 import redis
 import os
-import pickle
-
-# experimental
-import devices
+from utils.devices import devices, createStream
 from utils.timeout import timeout
-
+from utils.general import printLog, checkMode, checkInternet, setGeneral
+from utils.color import hsv2rgb
 
 # set up redis connection
 r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
@@ -36,56 +24,6 @@ everyOther = True
 every60k = 0
 originalColors = []
 offset_values = []
-
-
-
-
-def printLog(log, end=None):
-    '''Generates standard time string and prints out'''
-
-    # Generate time string
-    st = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    print(f'[{st}] {log}', end=end)
-
-
-def getBulbState(bulbs):
-    """Gets bulb state"""
-    for bulb in bulbs:
-        bulbs[bulb].refreshState()
-        #print(vars(bulbs[bulb]))
-        bulb_ip = bulbs[bulb].ipaddr
-
-        bulb_state_raw = bulbs[bulb]._WifiLedBulb__state_str
-
-        #bulb_state = bulb_state_raw.split('(')[1].split(')')[0]
-
-        #bulb_colors = bulb_state.split(', ')
-        print(vars(bulbs[bulb]))
-        #print(bulb_ip, bulb_state_raw)
-    printLog('-----')
-    
-
-def hsv2rgb(h, s, v):
-    h = float(h)
-    s = float(s)
-    v = float(v)
-    h60 = h / 60.0
-    h60f = math.floor(h60)
-    hi = int(h60f) % 6
-    f = h60 - h60f
-    p = v * (1 - s)
-    q = v * (1 - f * s)
-    t = v * (1 - (1 - f) * s)
-    r, g, b = 0, 0, 0
-    if hi == 0: r, g, b = v, t, p
-    elif hi == 1: r, g, b = q, v, p
-    elif hi == 2: r, g, b = p, v, t
-    elif hi == 3: r, g, b = p, q, v
-    elif hi == 4: r, g, b = t, p, v
-    elif hi == 5: r, g, b = v, p, q
-    r, g, b = int(r * 255), int(g * 255), int(b * 255)
-    return r, g, b
 
 
 async def changeColor(bulbs, peak):
@@ -189,29 +127,6 @@ def processMusic(sample):
     #return int(beat)
 
 
-def checkMode():
-    '''Check mode of button pushed from redis'''
-
-    p_mode = r.get('mode')
-    mode = pickle.loads(p_mode)
-
-    return mode['mode']
-
-
-def easeOutCubic(x):
-    return 1 - pow(1 - x, 3)
-
-
-def setGeneral(bulbs):
-    #for i in range(255):
-    #    brightness = int(easeOutCubic(i/254)*254)
-    #    loop.run_until_complete(changeColor(bulbs, int(brightness/10)))
-    #    time.sleep(0.01)
-
-    for bulb in bulbs:
-        bulbs[bulb].setRgb(30, 10, 1)
-
-
 def respondToMusic(stream, bulbs):
     global avg_last_ten
     global last_ten_ts
@@ -260,54 +175,6 @@ def respondToMusic(stream, bulbs):
     # change the color of LEDs
     #loop.run_until_complete(changeColor(bulbs, avg_last_ten))
     loop.run_until_complete(changeColor(bulbs, value))
-
-
-def checkInternet():
-    '''Check whether the internet is working before continuing with
-    the application'''
-
-    retry = True
-
-    while retry:
-        try:
-            resp = requests.get('http://example.com')
-            printLog('🌍 Connected to internet')
-            time.sleep(1)
-            if resp.status_code/10==20:
-                retry = False
-        except:
-            time.sleep(1)
-            printLog('🕐 Waiting for connection...')
-
-    return True
-
-
-def createStream():
-    """Creates a PulseAudio stream and handles choosing the
-    right input device to capture sound"""
-
-    # Get all input devices
-    _devices = devices.getDevices()
-    d = _devices[0] # Change device id here for now
-    printLog(f'🎙  Found {len(_devices)} input devices')
-    printLog(f'🎙  Connected to {d["name"]}')
-
-    # set up the microphone
-    form_1 = pyaudio.paInt16 # 16-bit resolution
-    chans = d['channels'] # 1 channel
-    samp_rate = d['rate'] # 44.1kHz sampling rate
-    chunk = 730 # 2^12 samples for buffer
-    #/chunk = int(730*0.43) # 2^12 samples for buffer
-    dev_index = d['dev_index'] # device index found by p.get_device_info_by_index(ii)
-
-    audio = pyaudio.PyAudio() # create pyaudio instantiation
-
-    # create pyaudio stream
-    stream = audio.open(format = form_1,rate = samp_rate,channels = chans, \
-                        input_device_index = dev_index,input = True, \
-                        frames_per_buffer=chunk)
-
-    return stream, chunk
 
 
 if __name__ == "__main__":
