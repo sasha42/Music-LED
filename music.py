@@ -9,36 +9,19 @@ from utils.timeout import timeout
 from utils.general import printLog, checkMode, checkInternet
 from utils.color import hsv2rgb
 
-# set up redis connection
-r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
-
-# pls don't judge my global variables
-avg_last_ten = []
-last_ten_ts = 0
-global_hue = 150
-settingTime = 0
-everyOther = True
-every60k = 0
-originalColors = []
-offset_values = []
-
 
 async def changeColor(bulbs, peak):
-    global global_hue
-    global settingTime
-    global everyOther
-    global every60k
-    global offset_values
+    # Set initial values
+    everyOther = True
+    global_hue = 150
+    every60k = 0
 
+    # Make sure that we never get out of bounds data
     if peak < 255:
-        # hack to accomodate for cray cray peak
         a_peak = peak*10
-        #if a_peak > 120:
-            #print(global_hue)
-            #global_hue += 30
-
         thresh = 200
 
+        # Briefly change the hue when there is a high peak
         if (everyOther == True and a_peak > thresh):
             everyOther = False
             global_hue += 20
@@ -46,62 +29,38 @@ async def changeColor(bulbs, peak):
             everyOther = True
             global_hue -= 20
 
+        # Shift hue roughly every 10 seconds
         every60k += 1
-
         if every60k > 600:
             every60k = 1
-            #print(f'change hue {global_hue}\n')
             global_hue += 10
 
+        # If value is legit, proceed
         if a_peak < 255:
-            # set up offset
-            offset_length = 1
-            offset_values.append(a_peak)
-            if len(offset_values) > offset_length:
-                del offset_values[0]
-            else:
-                pass
 
+            # Set a minimum brightness
+            if a_peak < 120:
+                a_peak = 120
+
+            # Set a iterable so that each bulb has its own hue
             i = 1
 
-            # When a peak surpasses threshold, create an easeOutQuint from peak value to threshold 
-
-            # SET THRESHOLD TODO FIXME
-            threshold = 120
-
-            #if a_peak < threshold:
-            #    for i in range(10):
-
-            #  # set next 10 values with easing
-            #  for i in range(10)
-            #    next_ten[i] = easing(a_peak)
-
             for bulb in bulbs:
-                # set minimum brightness
-                if offset_values[0] < 120:
-                    a_peak = 120
-                else:
-                    a_peak = offset_values[0]
-
-                # normalize peak 
-                i += 50
+                # Normalize peak to convert to hsv 
                 normalized_peak = a_peak/255
+                
+                # Change hue for each individual bulb
+                i += 50
+
+                # Convert hue to rgb values
                 r, g, b = hsv2rgb(global_hue+i, 1, normalized_peak)
-                #r, g, b = hsv2rgb(1, 1, normalized_peak)
 
-                settingTime = time.time()
-                if settingTime > time.time()+1:
-                    print(settingTime)
-                    print(time.time()+1)
-                    print('-----------------')
-                    print('bug')
-
-                # set color on lights
+                # Set rgb values on lights
                 bulbs[bulb].setRgb(r, g, b)
 
     else:
         print(peak)
-
+        
 
 def respondToMusic(stream, bulbs):
     """Takes in chunks from the audio stream, applies some filters
@@ -129,8 +88,11 @@ def respondToMusic(stream, bulbs):
 
 
 if __name__ == "__main__":
-    # wait for there to be an internet connection
+    # Wait for there to be an internet connection
     checkInternet()
+
+    # Set up redis connection
+    r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
 
     # Set up audio input
     stream, chunk = createStream()
@@ -206,8 +168,3 @@ if __name__ == "__main__":
         except RuntimeError:
             printLog('Timed out, retrying in 5 seconds')
             time.sleep(5)
-
-# this is probably important TODO FIXME
-#stream.stop_stream()
-#stream.close()
-#p.terminate()
