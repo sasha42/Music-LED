@@ -1,5 +1,5 @@
 import numpy as np
-from utils.filters import bassFilter, envelopeFilter, beatFilter
+from utils.filters import bassFilter, envelopeFilter
 import time
 import asyncio
 import redis
@@ -103,75 +103,29 @@ async def changeColor(bulbs, peak):
         print(peak)
 
 
-def processMusic(sample):
-    """Process music with @BinaryBrain's filters"""
-    # Filter only bass component
-    value = bassFilter(sample)
+def respondToMusic(stream, bulbs):
+    """Takes in chunks from the audio stream, applies some filters
+    to clean up the output, and then triggers lights based on amplitude
+    on the main asyncio loop."""
 
-    # Take signal amplitude and filter
+    # Listen to music
+    data = np.frombuffer(stream.read(chunk, exception_on_overflow = False),dtype=np.int16)
+
+    # Get peak value
+    peak=np.average(np.abs(data))*2
+
+    # Filter only the bass 
+    value = bassFilter(peak)
+
+    # Make sure that the value will always be positive
     if value < 0:
         value = -value
 
-    # Take signal amplitude and filter
+    # Run through an envelope filter
     envelope = envelopeFilter(value)
 
-    # Filter out repeating bass sounds 100 - 180bpm
-    beat = beatFilter(envelope)
-
-    #print(beat)
-
-    return int(envelope)
-    #return int(beat)
-
-
-def respondToMusic(stream, bulbs):
-    global avg_last_ten
-    global last_ten_ts
-
-    # listen to music
-    data = np.frombuffer(stream.read(chunk, exception_on_overflow = False),dtype=np.int16)
-    #arr = data
-    #print(data.shape)
-    
-    # Printing type of arr object
-    #print("Array is of type: ", type(arr))
-    # 
-    ## Printing array dimensions (axes)
-    #print("No. of dimensions: ", arr.ndim)
-    # 
-    ## Printing shape of array
-    #print("Shape of array: ", arr.shape)
-    # 
-    ## Printing size (total number of elements) of array
-    #print("Size of array: ", arr.size)
-    # 
-    ## Printing type of elements in array
-    #print("Array stores elements of type: ", arr.dtype)
-
-    peak=np.average(np.abs(data))*2
-
-    # test bpm
-    #bpm, fs = bpm_detector(data, 44100)
-    #print(bpm)
-
-    # process value
-    value = processMusic(peak)
-
-    last_ten.append(value)
-    if len(last_ten) > 100:
-        last_ten.pop(0)
-    else:
-        pass
-    avg_last_ten = int(sum(last_ten) / 100)
-    if value+3 < avg_last_ten:
-        time_delta = time.time()-last_ten_ts
-        last_ten_ts = time.time()
-        #print(time_delta)
-        #print('beat')
-
-    # change the color of LEDs
-    #loop.run_until_complete(changeColor(bulbs, avg_last_ten))
-    loop.run_until_complete(changeColor(bulbs, value))
+    # Change the color of LEDs
+    loop.run_until_complete(changeColor(bulbs, int(envelope)))
 
 
 if __name__ == "__main__":
