@@ -1,9 +1,10 @@
 # coding: utf-8
 import pyaudio
-import alsaerror
-from flux_led_v4 import BulbScanner
-from music import printLog, timeout
-import flux_led_v4 as flux_led
+import utils.alsaerror
+from utils.flux_led_v4 import BulbScanner
+from utils.general import printLog
+from utils.timeout import timeout
+import utils.flux_led_v4 as flux_led
 
 
 # Instantiate PyAudio

@@ -1,13 +1,10 @@
-# music
-import pyaudio
 import numpy as np
 from utils.filters import bassFilter, envelopeFilter, beatFilter
 import time
-import math
 import asyncio
 import redis
 import os
-from utils.devices import devices, createStream
+from utils.devices import createStream, loadLEDs
 from utils.timeout import timeout
 from utils.general import printLog, checkMode, checkInternet, setGeneral
 from utils.color import hsv2rgb
@@ -188,7 +185,7 @@ if __name__ == "__main__":
         try:
             # set up the LEDs
             with timeout(1): # 10 s timeout
-                bulbs = devices.loadLEDs()
+                bulbs = loadLEDs()
 
             if len(bulbs) == 0:
                 printLog("No lights connected!")
