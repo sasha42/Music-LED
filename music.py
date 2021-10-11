@@ -21,7 +21,7 @@ import pickle
 
 # experimental
 import devices
-import utils.timeout as timeout
+from utils.timeout import timeout
 
 
 # set up redis connection
