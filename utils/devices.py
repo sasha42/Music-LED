@@ -163,7 +163,7 @@ def createStream():
     right input device to capture sound"""
 
     # Get all input devices
-    _devices = devices.getDevices()
+    _devices = getDevices()
     d = _devices[0] # Change device id here for now
     printLog(f'🎙  Found {len(_devices)} input devices')
     printLog(f'🎙  Connected to {d["name"]}')
