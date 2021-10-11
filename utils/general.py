@@ -1,6 +1,7 @@
 import datetime
 import requests
 import time
+import pickle
 
 def printLog(log, end=None):
     '''Generates standard time string and prints out'''
@@ -11,7 +12,7 @@ def printLog(log, end=None):
     print(f'[{st}] {log}', end=end)
 
 
-def checkMode():
+def checkMode(r):
     '''Check mode of button pushed from redis'''
 
     p_mode = r.get('mode')

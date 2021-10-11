@@ -203,7 +203,7 @@ if __name__ == "__main__":
             while True:
                 # check if music mode is on or off
                 mode = 'music'
-                mode = checkMode()
+                mode = checkMode(r)
                 if mode != last_mode:
                     changed = True
                     last_mode = mode
