@@ -156,17 +156,32 @@ async def changeColor(bulbs, peak):
             else:
                 pass
 
+            i = 1
+
+            # When a peak surpasses threshold, create an easeOutQuint from peak value to threshold 
+
+            # SET THRESHOLD TODO FIXME
+            threshold = 120
+
+            #if a_peak < threshold:
+            #    for i in range(10):
+
+            #  # set next 10 values with easing
+            #  for i in range(10)
+            #    next_ten[i] = easing(a_peak)
+
             for bulb in bulbs:
                 # set minimum brightness
-                if offset_values[0] < 80:
-                    a_peak = 20
+                if offset_values[0] < 120:
+                    a_peak = 120
                 else:
                     a_peak = offset_values[0]
 
                 # normalize peak 
+                i += 50
                 normalized_peak = a_peak/255
-                #r, g, b = hsv2rgb(global_hue, 1, normalized_peak)
-                r, g, b = hsv2rgb(1, 1, normalized_peak)
+                r, g, b = hsv2rgb(global_hue+i, 1, normalized_peak)
+                #r, g, b = hsv2rgb(1, 1, normalized_peak)
 
                 settingTime = time.time()
                 if settingTime > time.time()+1:
@@ -176,8 +191,7 @@ async def changeColor(bulbs, peak):
                     print('bug')
 
                 # set color on lights
-                with timeout(1):
-                    bulbs[bulb].setRgb(r, g, b)
+                bulbs[bulb].setRgb(r, g, b)
 
     else:
         print(peak)
@@ -224,7 +238,7 @@ def setGeneral(bulbs):
     #    time.sleep(0.01)
 
     for bulb in bulbs:
-        bulbs[bulb].setRgb(3, 1, 0)
+        bulbs[bulb].setRgb(30, 10, 1)
 
 
 def respondToMusic(stream, bulbs):
@@ -376,7 +390,7 @@ if __name__ == "__main__":
 
                     #getBulbState(bulbs)
 
-                    time.sleep(1) # sleep so that we don't ddos redis
+                    time.sleep(0.01) # sleep so that we don't ddos redis
 
                 # do stuff every 100 steps
                 count += 1
