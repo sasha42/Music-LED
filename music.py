@@ -4,9 +4,9 @@ import time
 import asyncio
 import redis
 import os
-from utils.devices import createStream, loadLEDs
+from utils.devices import createStream, loadLEDs, setGeneral
 from utils.timeout import timeout
-from utils.general import printLog, checkMode, checkInternet, setGeneral
+from utils.general import printLog, checkMode, checkInternet
 from utils.color import hsv2rgb
 
 # set up redis connection
