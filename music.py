@@ -1,8 +1,6 @@
 # music
 import pyaudio
 #import alsaerror
-import sys
-import io
 import numpy as np
 from filters import bassFilter, envelopeFilter, beatFilter
 
@@ -11,13 +9,10 @@ import time
 import math
 import asyncio
 import datetime
-import copy
 import flux_led_v4 as flux_led
 
 # connection check
 import requests
-import time
-import datetime
 
 # redis
 import redis
@@ -25,11 +20,8 @@ import os
 import pickle
 
 # experimental
-#from bpm_detection import bpm_detector
-#from devices import getDevices, simpleList
 import devices
-import signal
-from contextlib import contextmanager
+import utils.timeout as timeout
 
 
 # set up redis connection
@@ -46,27 +38,6 @@ originalColors = []
 offset_values = []
 
 
-@contextmanager
-def timeout(time):
-    # Register a function to raise a TimeoutError on the signal.
-    signal.signal(signal.SIGALRM, raise_timeout)
-    # Schedule the signal to be sent after ``time``.
-    signal.alarm(time)
-
-    try:
-        yield
-    except TimeoutError:
-        pass
-    finally:
-        # Unregister the signal so it won't be triggered
-        # if the timeout is not reached.
-        signal.signal(signal.SIGALRM, signal.SIG_IGN)
-
-
-def raise_timeout(signum, frame):
-    #print('LED timedout')
-    #raise TimeoutError
-    raise RuntimeError
 
 
 def printLog(log, end=None):
