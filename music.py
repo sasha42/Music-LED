@@ -8,13 +8,17 @@ from utils.devices import createStream, loadLEDs, setGeneral
 from utils.timeout import timeout
 from utils.general import printLog, checkMode, checkInternet
 from utils.color import hsv2rgb
+from effects.easings import generateEasings
 
+next_vals = []
 
 async def changeColor(bulbs, peak):
     # Set initial values
+    global next_vals
     everyOther = True
     global_hue = 150
     every60k = 0
+    minimum_threshold = 80
 
     # Make sure that we never get out of bounds data
     if peak < 255:
@@ -35,12 +39,27 @@ async def changeColor(bulbs, peak):
             every60k = 1
             global_hue += 10
 
+        threshold = minimum_threshold
+        iterations = 3
+
+        # If value is above the threshold, compute a set of ease values
+        if (a_peak > threshold):
+            next_vals = generateEasings(a_peak, threshold, iterations)
+
+        # If not, check if there are ease values and return those
+        elif (a_peak < threshold and len(next_vals) > 0):
+            a_peak = next_vals.pop()
+
+        # Finally, if there are no values, return threshold value
+        else:
+            a_peak = threshold
+
         # If value is legit, proceed
         if a_peak < 255:
 
             # Set a minimum brightness
-            if a_peak < 120:
-                a_peak = 120
+            if a_peak < minimum_threshold:
+                a_peak = minimum_threshold
 
             # Set a iterable so that each bulb has its own hue
             i = 1
