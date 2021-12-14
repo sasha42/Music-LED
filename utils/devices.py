@@ -5,6 +5,7 @@ from utils.flux_led_v4 import BulbScanner
 from utils.general import printLog
 from utils.timeout import timeout
 import utils.flux_led_v4 as flux_led
+import time
 
 
 # Instantiate PyAudio
@@ -17,7 +18,7 @@ def getDevices():
 
     # Create a list
     suitable_devices = []
-            
+
     # Iterate over each device
     for i in range(p.get_device_count()):
         # Extract device metadata (note: there is more available)
@@ -26,7 +27,7 @@ def getDevices():
         d['dev_index'] = i
         d['rate'] = int(p.get_device_info_by_index(i)['defaultSampleRate'])
         d['channels'] = p.get_device_info_by_index(i)['maxInputChannels']
-        
+
         # Check if device has input channels and isn't the default fake device
         if (d['channels'] >= 1 and d['name'] != 'default'):
             # Save it to list
@@ -43,12 +44,12 @@ def simpleList(devices):
 
     # Append each device name to string
     for i in range(len(devices)):
-        device_str += devices[i]['name'] 
-        device_str += ' (' 
+        device_str += devices[i]['name']
+        device_str += ' ('
         device_str += str(devices[i]['dev_index'])
-        device_str += ', ' 
+        device_str += ', '
         device_str += str(devices[i]['channels'])
-        device_str +=' channels)'
+        device_str += ' channels)'
         if i+1 < len(devices):
             device_str += ', '
 
@@ -92,17 +93,17 @@ def loadLEDs():
         with timeout(1):
             try:
                 bulb = flux_led.WifiLedBulb(ip, timeout=0.1)
-                #print(vars(bulb))
-                #print(bulb._WifiLedBulb__state_str)
+                # print(vars(bulb))
+                # print(bulb._WifiLedBulb__state_str)
                 bulbs[cnt] = bulb
                 lastOrder[cnt] = ""
                 cnt = cnt + 1
 
             except Exception as e:
-                print ("Unable to connect to bulb at [{}]: {}".format(ip,e))
+                print("Unable to connect to bulb at [{}]: {}".format(ip, e))
                 continue
-    
-    #for bulb in bulbs:
+
+    # for bulb in bulbs:
     #    bulbs[bulb].getBulbInfo()
     # Return the bulbs that were successfully innitiated
     return bulbs
@@ -113,7 +114,7 @@ def getBulbs():
 
     # Initialize bulb scanner
     s = BulbScanner()
-    
+
     # Scan the local network with timeout of 1
     result = s.scan(timeout=1)
 
@@ -135,7 +136,7 @@ def getBulbState(bulbs):
     """Gets bulb state"""
     for bulb in bulbs:
         bulbs[bulb].refreshState()
-        #print(vars(bulbs[bulb]))
+        # print(vars(bulbs[bulb]))
         bulb_ip = bulbs[bulb].ipaddr
 
         bulb_state_raw = bulbs[bulb]._WifiLedBulb__state_str
@@ -146,16 +147,30 @@ def getBulbState(bulbs):
         print(vars(bulbs[bulb]))
         #print(bulb_ip, bulb_state_raw)
     printLog('-----')
-    
+
 
 def setGeneral(bulbs):
-    #for i in range(255):
+    # for i in range(255):
     #    brightness = int(easeOutCubic(i/254)*254)
     #    loop.run_until_complete(changeColor(bulbs, int(brightness/10)))
     #    time.sleep(0.01)
 
+    # Light pattern
+    # Note: this works, however is super unreliable, lots of strips
+    # don't light up for some reason TODO FIXME
+    pattern = [(0, 0, 0), (255, 255, 255), (255, 255, 255)]
+
+    # First, fade in the bulbs
+    #for bulb in bulbs:
+        #bulbs[bulb].setRgb(30, 10, 1)
+    #    bulbs[bulb].setCustomPattern(pattern, 90, 'gradual')
+
+    # Super hack to set color to full white and prevent fade down
+    #time.sleep(3)
+
+    # Turn on the bulbs to maximum brightness
     for bulb in bulbs:
-        bulbs[bulb].setRgb(30, 10, 1)
+        bulbs[bulb].setRgb(255, 255, 255)
 
 
 def createStream():
@@ -164,23 +179,24 @@ def createStream():
 
     # Get all input devices
     _devices = getDevices()
-    d = _devices[0] # Change device id here for now
+    d = _devices[0]  # Change device id here for now
     printLog(f'🎙  Found {len(_devices)} input devices')
     printLog(f'🎙  Connected to {d["name"]}')
 
     # set up the microphone
-    form_1 = pyaudio.paInt16 # 16-bit resolution
-    chans = d['channels'] # 1 channel
-    samp_rate = d['rate'] # 44.1kHz sampling rate
-    chunk = 730 # 2^12 samples for buffer
-    #/chunk = int(730*0.43) # 2^12 samples for buffer
-    dev_index = d['dev_index'] # device index found by p.get_device_info_by_index(ii)
+    form_1 = pyaudio.paInt16  # 16-bit resolution
+    chans = d['channels']  # 1 channel
+    samp_rate = d['rate']  # 44.1kHz sampling rate
+    chunk = 730  # 2^12 samples for buffer
+    # /chunk = int(730*0.43) # 2^12 samples for buffer
+    # device index found by p.get_device_info_by_index(ii)
+    dev_index = d['dev_index']
 
-    audio = pyaudio.PyAudio() # create pyaudio instantiation
+    audio = pyaudio.PyAudio()  # create pyaudio instantiation
 
     # create pyaudio stream
-    stream = audio.open(format = form_1,rate = samp_rate,channels = chans, \
-                        input_device_index = dev_index,input = True, \
+    stream = audio.open(format=form_1, rate=samp_rate, channels=chans,
+                        input_device_index=dev_index, input=True,
                         frames_per_buffer=chunk)
 
     return stream, chunk
@@ -191,7 +207,7 @@ if __name__ == "__main__":
     simple_devices = simpleList(devices)
 
     bulbs = getBulbs()
-    simple_bulbs = simpleBulbList(bulbs)   
+    simple_bulbs = simpleBulbList(bulbs)
 
     print(simple_devices)
     print(simple_bulbs)

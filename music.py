@@ -6,7 +6,7 @@ import redis
 import os
 from utils.devices import createStream, loadLEDs, setGeneral
 from utils.timeout import timeout
-from utils.general import printLog, checkMode, checkInternet
+from utils.general import checkLastActive, printLog, checkMode, checkInternet, setLastActive
 from utils.color import hsv2rgb
 from effects.easings import generateEasings
 
@@ -154,9 +154,23 @@ if __name__ == "__main__":
                 # then check state again every second
                 if mode == "general":
                     if changed == True:
+                        # Check if bulbs were off for a long time, indicating
+                        # them receiving power to turn on intentionally
+                        previouslyInactive = checkLastActive(r)
+
+                        # Turn them on if bulbs just received power after
+                        # being off for a long time
+                        if previouslyInactive:
+                            printLog("Turning on the bulbs")
+                            for b in bulbs:
+                                bulbs[b].turnOn()
+
                         printLog('🔦 Setting general lighting mode')
                         setGeneral(bulbs)
                         changed = False
+
+                        # Track lights being on in general mode
+                        setLastActive(r)
 
                     #getBulbState(bulbs)
 
@@ -180,6 +194,17 @@ if __name__ == "__main__":
                     timestamp = time.time()
 
                     count = 0
+
+                    # Try to make it crash if lights are offline
+                    try:
+                        bulbs[1].refreshState()
+                    except:
+                        print('this is happening here')
+                        raise RuntimeError('cant get bulb state')
+
+
+                    # Track lights being on in music mode
+                    setLastActive(r)
 
                 #if timestamp_bug == 0:
                 #    print(chr(27) + "[2J")

@@ -40,3 +40,40 @@ def checkInternet():
 
     return True
 
+
+def setLastActive(r):
+    '''Set the timestamp of the last time the lights were online
+    and active, so that we can turn on the lights intelligently.'''
+
+    # Get current timestamp
+    timestamp = int(time.time())
+
+    # printLog('⏰ Setting inactive timestamp')
+
+    # Set it in redis
+    r.set('active', timestamp)
+
+
+def checkLastActive(r):
+    '''Checks the time when the lights were last active and return
+    a true or false whether they should be turned on.'''
+
+    # Get current timestamp
+    timestamp = int(time.time())
+
+    # Get timestamp from redis
+    try:
+        prev_timestamp = int(r.get('active'))
+    except:
+        prev_timestamp = int(0)
+
+    # Define the time delta for when we should forcefully turn
+    # on the lights
+    delta = int(30) # 30s in ms for testing
+
+    if (timestamp-prev_timestamp) > delta:
+        printLog('⏰ Previously inactive for a long time, turning on')
+        return True
+    else:
+        printLog('⏰ Not inactive for long period')
+        return False
